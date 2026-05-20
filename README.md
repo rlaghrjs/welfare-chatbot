@@ -1,6 +1,6 @@
 # FastAPI Welfare Project
 
-Spring Boot 복지 OpenAPI 저장 프로젝트를 FastAPI 구조로 변환한 예제입니다.
+복지 챗봇을 만들기위한 백엔드 FastAPi 입니다.
 
 ## 1. 가상환경 생성
 
