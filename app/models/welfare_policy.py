@@ -3,7 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
 
-
+# 복지데이터 DB 테이블 구조
 class WelfarePolicy(Base):
     __tablename__ = "welfare_policy"
 

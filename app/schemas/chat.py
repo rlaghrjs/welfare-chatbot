@@ -1,18 +1,25 @@
 from pydantic import BaseModel
 
 
+class CreateSessionResponse(BaseModel):
+    session_key: str
+    status: str
+
+
 class ChatRequest(BaseModel):
     message: str
 
 
-class ChatPolicy(BaseModel):
-    serv_id: str
-    serv_nm: str | None = None
-    serv_dgst: str | None = None
-    serv_dtl_link: str | None = None
-
-
-class ChatResponse(BaseModel):
+class ChatMessageResponse(BaseModel):
     answer: str
     intent: dict
-    policies: list[ChatPolicy]
+    request_url: str | None = None
+    saved_count: int = 0
+    skipped_count: int = 0
+    policies: list[dict] = []
+
+
+class EndSessionResponse(BaseModel):
+    session_key: str
+    status: str
+    summary: str | None = None

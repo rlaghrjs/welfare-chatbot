@@ -1,9 +1,10 @@
-from urllib.parse import urlencode
+import re
+import html
 import xml.etree.ElementTree as ET
-
 import httpx
-from sqlalchemy.orm import Session
 
+from sqlalchemy.orm import Session
+from urllib.parse import urlencode
 from app.core.config import settings
 from app.models.welfare_policy import WelfarePolicy
 
@@ -65,23 +66,23 @@ def parse_welfare_xml(xml_text: str) -> list[dict]:
 
         policies.append({
             "inq_num": to_int(get_text(item, "inqNum")),
-            "intrs_thema_array": get_text(item, "intrsThemaArray"),
-            "jur_mnof_nm": get_text(item, "jurMnofNm"),
-            "jur_org_nm": get_text(item, "jurOrgNm"),
-            "life_array": get_text(item, "lifeArray"),
-            "onap_psblt_yn": get_text(item, "onapPsbltYn"),
-            "rprs_ctadr": get_text(item, "rprsCtadr"),
-            "serv_dgst": get_text(item, "servDgst"),
-            "serv_dtl_link": get_text(item, "servDtlLink"),
+            "intrs_thema_array": clean_text(get_text(item, "intrsThemaArray")),
+            "jur_mnof_nm": clean_text(get_text(item, "jurMnofNm")),
+            "jur_org_nm": clean_text(get_text(item, "jurOrgNm")),
+            "life_array": clean_text(get_text(item, "lifeArray")),
+            "onap_psblt_yn": clean_text(get_text(item, "onapPsbltYn")),
+            "rprs_ctadr": clean_text(get_text(item, "rprsCtadr")),
+            "serv_dgst": limit_text(get_text(item, "servDgst"), 1500),
+            "serv_dtl_link": clean_text(get_text(item, "servDtlLink")),
             "serv_id": serv_id,
-            "serv_nm": get_text(item, "servNm"),
-            "sprt_cyc_nm": get_text(item, "sprtCycNm"),
-            "srv_pvsn_nm": get_text(item, "srvPvsnNm"),
-            "svcfrst_reg_ts": get_text(item, "svcfrstRegTs"),
-            "trgter_indvdl_array": get_text(item, "trgterIndvdlArray"),
+            "serv_nm": clean_text(get_text(item, "servNm")),
+            "sprt_cyc_nm": clean_text(get_text(item, "sprtCycNm")),
+            "srv_pvsn_nm": clean_text(get_text(item, "srvPvsnNm")),
+            "svcfrst_reg_ts": clean_text(get_text(item, "svcfrstRegTs")),
+            "trgter_indvdl_array": clean_text(get_text(item, "trgterIndvdlArray")),
         })
 
-    return policies
+    return remove_duplicate_policies(policies)
 
 
 async def fetch_save_and_return(db: Session, intent: dict) -> dict:
@@ -127,3 +128,50 @@ async def fetch_save_and_return(db: Session, intent: dict) -> dict:
         "skipped_count": skipped_count,
         "policies": saved_or_existing_policies,
     }
+
+
+def clean_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    value = html.unescape(value)
+    value = re.sub(r"<[^>]+>", " ", value)
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip()
+
+    if value in ["", "-", "null", "None", "정보 없음"]:
+        return None
+
+    return value
+
+
+# 글자수 제한 함수
+def limit_text(value: str | None, max_length: int = 1000) -> str | None:
+    value = clean_text(value)
+
+    if value is None:
+        return None
+
+    if len(value) > max_length:
+        return value[:max_length] + "..."
+
+    return value
+
+# 중복 servId 제한 함수
+def remove_duplicate_policies(policies: list[dict]) -> list[dict]:
+    seen = set()
+    result = []
+
+    for policy in policies:
+        serv_id = policy.get("serv_id")
+
+        if not serv_id:
+            continue
+
+        if serv_id in seen:
+            continue
+
+        seen.add(serv_id)
+        result.append(policy)
+
+    return result
