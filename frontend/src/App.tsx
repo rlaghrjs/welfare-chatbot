@@ -1,60 +1,61 @@
 import { useState } from "react";
 
 interface Policy {
-  serv_id: string;
+  serv_id: string | null;
   serv_nm: string | null;
   serv_dgst: string | null;
   serv_dtl_link: string | null;
 }
 
-interface ChatResponse {
-  answer: string;
-  intent: any;
-  request_url: string;
-  saved_count: number;
-  skipped_count: number;
-  policies: Policy[];
-}
-
-interface ChatBubble {
+interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  policies?: Policy[];
 }
 
 export default function App() {
-  const [sessionKey, setSessionKey] = useState("");
-  const [message, setMessage] = useState("");
-  const [chatList, setChatList] = useState<ChatBubble[]>([]);
+  const [sessionId, setSessionId] = useState<string>("");
+  const [message, setMessage] = useState<string>("");
+  const [chatList, setChatList] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const [intent, setIntent] = useState<any>(null);
-  const [requestUrl, setRequestUrl] = useState("");
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [loading, setLoading] = useState(false);
+  const API_BASE_URL = "http://127.0.0.1:8000";
 
   const createSession = async () => {
-    const response = await fetch("http://127.0.0.1:8000/api/chat/session", {
-      method: "POST",
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chat/session`, {
+        method: "POST",
+      });
 
-    const data = await response.json();
-    setSessionKey(data.session_key);
-    setChatList([
-      {
-        role: "assistant",
-        content: "채팅 세션이 시작되었습니다. 궁금한 복지제도를 입력해주세요.",
-      },
-    ]);
+      if (!response.ok) {
+        throw new Error("세션 생성 실패");
+      }
+
+      const data = await response.json();
+
+      setSessionId(data.session_id);
+
+      setChatList([
+        {
+          role: "assistant",
+          content: "채팅 세션이 시작되었습니다. 궁금한 복지제도를 입력해주세요.",
+        },
+      ]);
+    } catch (error) {
+      console.error(error);
+      alert("세션 생성 중 오류가 발생했습니다.");
+    }
   };
 
   const sendMessage = async () => {
-    if (!sessionKey) {
+    if (!sessionId) {
       alert("먼저 세션을 생성하세요.");
       return;
     }
 
     if (!message.trim()) return;
 
-    const userMessage = message;
+    const userMessage = message.trim();
 
     setChatList((prev) => [
       ...prev,
@@ -67,105 +68,129 @@ export default function App() {
     setMessage("");
     setLoading(true);
 
-    const response = await fetch(
-      `http://127.0.0.1:8000/api/chat/session/${sessionKey}/message`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: userMessage,
-        }),
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/chat/session/${sessionId}/message`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: userMessage,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("메시지 전송 실패");
       }
-    );
 
-    const data: ChatResponse = await response.json();
+      const data = await response.json();
 
-    setChatList((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: data.answer,
-      },
-    ]);
-
-    setIntent(data.intent);
-    setRequestUrl(data.request_url);
-    setPolicies(data.policies);
-    setLoading(false);
+      setChatList((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer,
+          policies: data.policies ?? [],
+        },
+      ]);
+    } catch (error) {
+      console.error(error);
+      alert("메시지 처리 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const endSession = async () => {
-    if (!sessionKey) return;
+    if (!sessionId) {
+      alert("종료할 세션이 없습니다.");
+      return;
+    }
 
-    const response = await fetch(
-      `http://127.0.0.1:8000/api/chat/session/${sessionKey}/end`,
-      {
-        method: "POST",
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/chat/session/${sessionId}/end`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("세션 종료 실패");
       }
-    );
 
-    const data = await response.json();
+      const data = await response.json();
 
-    setChatList((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: `세션이 종료되었습니다. 요약: ${data.summary}`,
-      },
-    ]);
+      setChatList((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `세션이 종료되었습니다. 상태: ${data.status}`,
+        },
+      ]);
 
-    setSessionKey("");
+      setSessionId("");
+    } catch (error) {
+      console.error(error);
+      alert("세션 종료 중 오류가 발생했습니다.");
+    }
   };
 
   return (
     <div
       style={{
-        maxWidth: 1100,
+        maxWidth: 900,
         margin: "0 auto",
         padding: 24,
         fontFamily: "Arial",
-        display: "grid",
-        gridTemplateColumns: "1.2fr 1fr",
-        gap: 24,
       }}
     >
+      <h1>복지 챗봇 테스트</h1>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        <button onClick={createSession}>세션 생성</button>
+
+        <button onClick={endSession} disabled={!sessionId}>
+          세션 종료
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <strong>현재 세션 ID:</strong>
+
+        <div
+          style={{
+            wordBreak: "break-all",
+            color: "#2563eb",
+            marginTop: 4,
+          }}
+        >
+          {sessionId || "없음"}
+        </div>
+      </div>
+
       <section
         style={{
           border: "1px solid #ddd",
-          borderRadius: 16,
+          borderRadius: 12,
           overflow: "hidden",
-          background: "#fff",
+          background: "#ffffff",
         }}
       >
         <div
           style={{
-            padding: 16,
-            borderBottom: "1px solid #eee",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0 }}>복지 챗봇</h2>
-            <small>{sessionKey ? `세션: ${sessionKey}` : "세션 없음"}</small>
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={createSession}>세션 생성</button>
-            <button onClick={endSession} disabled={!sessionKey}>
-              세션 종료
-            </button>
-          </div>
-        </div>
-
-        <div
-          style={{
-            height: 520,
-            padding: 16,
+            height: 560,
             overflowY: "auto",
+            padding: 16,
             background: "#f8fafc",
           }}
         >
@@ -182,12 +207,12 @@ export default function App() {
                 display: "flex",
                 justifyContent:
                   chat.role === "user" ? "flex-end" : "flex-start",
-                marginBottom: 12,
+                marginBottom: 14,
               }}
             >
               <div
                 style={{
-                  maxWidth: "75%",
+                  maxWidth: chat.role === "user" ? "70%" : "82%",
                   padding: "12px 14px",
                   borderRadius: 16,
                   background: chat.role === "user" ? "#2563eb" : "#ffffff",
@@ -197,24 +222,85 @@ export default function App() {
                   lineHeight: 1.5,
                 }}
               >
-                {chat.content}
+                <div>{chat.content}</div>
+
+                {chat.policies && chat.policies.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    {chat.policies.map((policy, policyIndex) => (
+                      <div
+                        key={`${policy.serv_id}-${policyIndex}`}
+                        style={{
+                          background: "#f8fafc",
+                          border: "1px solid #dbeafe",
+                          borderRadius: 12,
+                          padding: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            marginBottom: 8,
+                            color: "#1e3a8a",
+                          }}
+                        >
+                          {policy.serv_nm || "제도명 없음"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            color: "#374151",
+                            marginBottom: 10,
+                          }}
+                        >
+                          {policy.serv_dgst || "요약 정보 없음"}
+                        </div>
+
+                        {policy.serv_dtl_link && (
+                          <a
+                            href={policy.serv_dtl_link}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              color: "#2563eb",
+                              fontSize: 14,
+                              textDecoration: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            상세보기 →
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
 
           {loading && (
-            <div style={{ color: "#64748b", marginTop: 8 }}>
-              챗봇이 복지 정보를 찾는 중...
-            </div>
+            <p style={{ color: "#64748b", marginTop: 8 }}>
+              복지 정보를 검색하는 중...
+            </p>
           )}
         </div>
 
         <div
           style={{
-            padding: 16,
-            borderTop: "1px solid #eee",
             display: "flex",
             gap: 8,
+            padding: 16,
+            borderTop: "1px solid #e5e7eb",
+            background: "#ffffff",
           }}
         >
           <input
@@ -227,113 +313,14 @@ export default function App() {
             style={{
               flex: 1,
               padding: 12,
-              borderRadius: 10,
               border: "1px solid #ddd",
+              borderRadius: 8,
             }}
           />
 
-          <button onClick={sendMessage} disabled={loading || !sessionKey}>
+          <button onClick={sendMessage} disabled={!sessionId || loading}>
             전송
           </button>
-        </div>
-      </section>
-
-      <section>
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 16,
-            background: "#fff",
-          }}
-        >
-          <h3>NLP 분석 결과</h3>
-
-          {intent ? (
-            <pre
-              style={{
-                background: "#111827",
-                color: "#f9fafb",
-                padding: 12,
-                borderRadius: 10,
-                overflowX: "auto",
-                fontSize: 12,
-              }}
-            >
-              {JSON.stringify(intent, null, 2)}
-            </pre>
-          ) : (
-            <p style={{ color: "#64748b" }}>아직 분석 결과 없음</p>
-          )}
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 16,
-            background: "#fff",
-          }}
-        >
-          <h3>생성된 OpenAPI URL</h3>
-
-          {requestUrl ? (
-            <div
-              style={{
-                wordBreak: "break-all",
-                background: "#f3f4f6",
-                padding: 12,
-                borderRadius: 10,
-                fontSize: 13,
-              }}
-            >
-              {requestUrl}
-            </div>
-          ) : (
-            <p style={{ color: "#64748b" }}>아직 요청 URL 없음</p>
-          )}
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 16,
-            padding: 16,
-            background: "#fff",
-          }}
-        >
-          <h3>복지 검색 결과</h3>
-
-          {policies.length === 0 ? (
-            <p style={{ color: "#64748b" }}>조회 결과 없음</p>
-          ) : (
-            policies.map((policy) => (
-              <div
-                key={policy.serv_id}
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 12,
-                  padding: 12,
-                  marginBottom: 12,
-                }}
-              >
-                <strong>{policy.serv_nm}</strong>
-                <p style={{ lineHeight: 1.5 }}>{policy.serv_dgst}</p>
-
-                {policy.serv_dtl_link && (
-                  <a
-                    href={policy.serv_dtl_link}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    상세보기
-                  </a>
-                )}
-              </div>
-            ))
-          )}
         </div>
       </section>
     </div>
