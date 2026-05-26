@@ -6,3 +6,5 @@ pydantic
 pydantic-settings
 httpx
 python-dotenv
+psycopg2
+openai
