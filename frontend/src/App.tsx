@@ -42,6 +42,8 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [chatList, setChatList] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     loadSessions();
@@ -123,6 +125,52 @@ export default function App() {
 
     setLoading(false);
     await loadSessions();
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+
+        const formData = new FormData();
+        formData.append("file", audioBlob, "recording.webm");
+
+        const response = await fetch("http://127.0.0.1:8000/api/stt/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+        setMessage(data.text);
+
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setRecording(true);
+    } catch (error) {
+      console.error(error);
+      alert("마이크 권한을 확인해주세요.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (!mediaRecorder) return;
+
+    mediaRecorder.stop();
+    setRecording(false);
+    setMediaRecorder(null);
   };
 
   const endSession = async () => {
@@ -284,6 +332,12 @@ export default function App() {
             border: "1px solid #dbeafe",
           }}
         />
+        <button
+          onClick={recording ? stopRecording : startRecording}
+          disabled={!sessionId || loading}
+        >
+          {recording ? "⏹️" : "🎤"}
+        </button>
         <button onClick={sendMessage} disabled={!sessionId || loading}>
           전송
         </button>

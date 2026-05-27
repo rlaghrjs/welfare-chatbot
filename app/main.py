@@ -5,12 +5,16 @@ from app.db.init_db import init_db
 #from app.routers.welfare import router as welfare_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers.chat import router as chat_router
+from app.routers.stt import router as stt_router
 
 app = FastAPI(
     title=settings.app_name,
     description="복지 OpenAmyPI 데이터를 수집하고 PostgreSQL에 저장하는 FastAPI 서버",
     version="1.0.0",
 )
+
+
+app.include_router(stt_router)
 
 
 app.add_middleware(
