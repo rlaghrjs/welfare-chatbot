@@ -8,7 +8,7 @@ from app.routers.chat import router as chat_router
 
 app = FastAPI(
     title=settings.app_name,
-    description="복지 OpenAPI 데이터를 수집하고 PostgreSQL에 저장하는 FastAPI 서버",
+    description="복지 OpenAmyPI 데이터를 수집하고 PostgreSQL에 저장하는 FastAPI 서버",
     version="1.0.0",
 )
 
