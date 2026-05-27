@@ -17,7 +17,7 @@ client = OpenAI(api_key=settings.openai_api_key)
 @router.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     if not file.content_type or not file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=400, detail="오디오 파일만 업로드할 수 있습니다.")
+        raise HTTPException(status_code=400, detail="오디오 파일만 업로드 가능.")
 
     suffix = os.path.splitext(file.filename or "")[-1] or ".webm"
 
