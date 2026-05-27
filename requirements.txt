@@ -8,3 +8,4 @@ httpx
 python-dotenv
 psycopg2
 openai
+python-multipart
