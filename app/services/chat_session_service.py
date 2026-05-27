@@ -31,14 +31,18 @@ def get_active_session(db: Session, session_id: UUID) -> ChatSession | None:
 
 def save_chat_message(
     db: Session,
-    session_id: UUID,
+    session_id,
     role: str,
-    content: str,
-) -> ChatMessage:
+    content: str | None,
+    message_type: str = "text",
+    message_metadata: dict | None = None,
+):
     message = ChatMessage(
         session_id=session_id,
         role=role,
         content=content,
+        message_type=message_type,
+        message_metadata=message_metadata,
     )
 
     db.add(message)
@@ -46,7 +50,6 @@ def save_chat_message(
     db.refresh(message)
 
     return message
-
 
 def end_chat_session(db: Session, session: ChatSession) -> ChatSession:
     session.status = "ended"

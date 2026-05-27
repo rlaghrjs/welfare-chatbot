@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
 
-# 채팅 메세지 DB 테이블
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
@@ -24,7 +24,18 @@ class ChatMessage(Base):
     )
 
     role: Mapped[str] = mapped_column(String(20), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    message_type: Mapped[str] = mapped_column(
+        String(30),
+        default="text",
+    )
+
+    message_metadata: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
