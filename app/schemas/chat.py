@@ -8,6 +8,8 @@ class CreateSessionResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    ctpvNm: str | None = None
+    sggNm: str | None = None
 
 
 class ChatMessageResponse(BaseModel):

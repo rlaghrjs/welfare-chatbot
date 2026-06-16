@@ -13,6 +13,7 @@ from app.services.chat_session_service import (
 )
 from app.services.nlp_service import analyze_message
 from app.services.welfare_service import fetch_save_and_return
+from app.services.local_welfare_service import fetch_local_save_and_return
 from app.models.chat_session import ChatSession
 from app.models.chat_message import ChatMessage
 from app.models.welfare_api_result import WelfareApiResult
@@ -46,34 +47,68 @@ async def send_message(
     if session is None:
         raise HTTPException(status_code=404, detail="활성 세션이 없습니다.")
 
-    if session.title == "새 채팅":
-        session.title = request.message[:30]
-        db.commit()
-        db.refresh(session)
-
     save_chat_message(
         db=db,
         session_id=session.id,
         role="user",
         content=request.message,
-        message_type="text",
     )
 
     intent = analyze_message(request.message)
 
-    result = await fetch_save_and_return(
+    if request.ctpvNm:
+        intent["ctpvNm"] = request.ctpvNm
+
+    if not is_searchable_intent(intent):
+        answer = (
+            "복지제도를 검색하려면 대상이나 관심 분야를 조금 더 구체적으로 입력해주세요.\n"
+            "예: 청년 월세 지원, 저소득층 생활비 지원, 임산부 출산 지원, 노인 돌봄 서비스"
+        )
+
+        save_chat_message(
+            db=db,
+            session_id=session.id,
+            role="assistant",
+            content=answer,
+        )
+
+        return {
+            "answer": answer,
+            "intent": intent,
+            "results": {
+                "central": {
+                    "request_url": None,
+                    "saved_count": 0,
+                    "policies": [],
+                },
+                "local": {
+                    "request_url": None,
+                    "saved_count": 0,
+                    "policies": [],
+                },
+            },
+        }
+
+    central_result = await fetch_save_and_return(
         db=db,
         session_id=session.id,
         query=request.message,
         intent=intent,
     )
 
-    policies = result["policies"]
+    local_result = await fetch_local_save_and_return(
+        db=db,
+        session_id=session.id,
+        query=request.message,
+        intent=intent,
+    )
+
+    central_policies = central_result["policies"]
+    local_policies = local_result["policies"]
 
     answer = (
-        f"관련 복지제도 {len(policies)}건을 찾았어요."
-        if policies
-        else "조건에 맞는 복지제도를 찾지 못했어요."
+        f"중앙 복지제도 {len(central_policies)}건, "
+        f"지자체 복지제도 {len(local_policies)}건을 찾았어요."
     )
 
     save_chat_message(
@@ -81,29 +116,24 @@ async def send_message(
         session_id=session.id,
         role="assistant",
         content=answer,
-        message_type="text",
     )
-
-    if policies:
-        save_chat_message(
-            db=db,
-            session_id=session.id,
-            role="assistant",
-            content=None,
-            message_type="welfare_cards",
-            message_metadata={
-                "policies": policies
-            },
-        )
 
     return {
         "answer": answer,
         "intent": intent,
-        "request_url": result["request_url"],
-        "saved_count": result["saved_count"],
-        "policies": policies,
+        "results": {
+            "central": {
+                "request_url": central_result["request_url"],
+                "saved_count": central_result["saved_count"],
+                "policies": central_policies,
+            },
+            "local": {
+                "request_url": local_result["request_url"],
+                "saved_count": local_result["saved_count"],
+                "policies": local_policies,
+            },
+        },
     }
-
 
 @router.post("/session/{session_id}/end")
 def end_session(
@@ -206,3 +236,14 @@ def get_session_detail(
             for result in api_results
         ],
     }
+
+def is_searchable_intent(intent: dict) -> bool:
+    searchable_keys = [
+        "searchWrd",
+        "lifeArray",
+        "trgterIndvdlArray",
+        "intrsThemaArray",
+        "age",
+    ]
+
+    return any(intent.get(key) for key in searchable_keys)

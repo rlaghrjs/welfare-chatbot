@@ -1,19 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface Policy {
   serv_id?: string | null;
   serv_nm?: string | null;
   serv_dgst?: string | null;
   serv_dtl_link?: string | null;
+  ctpv_nm?: string | null;
+  sgg_nm?: string | null;
+  biz_chr_dept_nm?: string | null;
+  aply_mtd_nm?: string | null;
+  intrs_thema_nm_array?: string | null;
+  last_mod_ymd?: string | null;
+}
+
+interface WelfareGroup {
+  request_url?: string | null;
+  saved_count?: number;
+  policies?: Policy[];
+}
+
+interface ChatResponse {
+  answer: string;
+  intent?: Record<string, unknown>;
+  policies?: Policy[];
+  results?: {
+    central?: WelfareGroup;
+    local?: WelfareGroup;
+  };
 }
 
 interface ChatMessage {
   id?: string;
   role: "user" | "assistant";
   content: string | null;
-  message_type?: "text" | "welfare_cards" | "system";
+  message_type?: "text" | "welfare_cards" | "system" | "debug";
   message_metadata?: {
     policies?: Policy[];
+    title?: string;
+    request_url?: string | null;
   } | null;
 }
 
@@ -32,6 +56,97 @@ interface SessionDetailResponse {
 
 type Page = "home" | "chat" | "settings";
 
+type RegionMap = Record<string, string[]>;
+
+const REGION_MAP: RegionMap = {
+  "서울특별시": [
+    "강남구",
+    "강동구",
+    "강북구",
+    "강서구",
+    "관악구",
+    "광진구",
+    "구로구",
+    "금천구",
+    "노원구",
+    "도봉구",
+    "동대문구",
+    "동작구",
+    "마포구",
+    "서대문구",
+    "서초구",
+    "성동구",
+    "성북구",
+    "송파구",
+    "양천구",
+    "영등포구",
+    "용산구",
+    "은평구",
+    "종로구",
+    "중구",
+    "중랑구",
+  ],
+  "인천광역시": [
+    "강화군",
+    "계양구",
+    "남동구",
+    "동구",
+    "미추홀구",
+    "부평구",
+    "서구",
+    "연수구",
+    "옹진군",
+    "중구",
+  ],
+  "경기도": [
+    "가평군",
+    "고양시",
+    "과천시",
+    "광명시",
+    "광주시",
+    "구리시",
+    "군포시",
+    "김포시",
+    "남양주시",
+    "동두천시",
+    "부천시",
+    "성남시",
+    "수원시",
+    "시흥시",
+    "안산시",
+    "안성시",
+    "안양시",
+    "양주시",
+    "양평군",
+    "여주시",
+    "연천군",
+    "오산시",
+    "용인시",
+    "의왕시",
+    "의정부시",
+    "이천시",
+    "파주시",
+    "평택시",
+    "포천시",
+    "하남시",
+    "화성시",
+  ],
+  "부산광역시": ["강서구", "금정구", "기장군", "남구", "동구", "동래구", "부산진구", "북구", "사상구", "사하구", "서구", "수영구", "연제구", "영도구", "중구", "해운대구"],
+  "대구광역시": ["군위군", "남구", "달서구", "달성군", "동구", "북구", "서구", "수성구", "중구"],
+  "광주광역시": ["광산구", "남구", "동구", "북구", "서구"],
+  "대전광역시": ["대덕구", "동구", "서구", "유성구", "중구"],
+  "울산광역시": ["남구", "동구", "북구", "울주군", "중구"],
+  "세종특별자치시": ["세종특별자치시"],
+  "강원특별자치도": ["강릉시", "고성군", "동해시", "삼척시", "속초시", "양구군", "양양군", "영월군", "원주시", "인제군", "정선군", "철원군", "춘천시", "태백시", "평창군", "홍천군", "화천군", "횡성군"],
+  "충청북도": ["괴산군", "단양군", "보은군", "영동군", "옥천군", "음성군", "제천시", "증평군", "진천군", "청주시", "충주시"],
+  "충청남도": ["계룡시", "공주시", "금산군", "논산시", "당진시", "보령시", "부여군", "서산시", "서천군", "아산시", "예산군", "천안시", "청양군", "태안군", "홍성군"],
+  "전북특별자치도": ["고창군", "군산시", "김제시", "남원시", "무주군", "부안군", "순창군", "완주군", "익산시", "임실군", "장수군", "전주시", "정읍시", "진안군"],
+  "전라남도": ["강진군", "고흥군", "곡성군", "광양시", "구례군", "나주시", "담양군", "목포시", "무안군", "보성군", "순천시", "신안군", "여수시", "영광군", "영암군", "완도군", "장성군", "장흥군", "진도군", "함평군", "해남군", "화순군"],
+  "경상북도": ["경산시", "경주시", "고령군", "구미시", "김천시", "문경시", "봉화군", "상주시", "성주군", "안동시", "영덕군", "영양군", "영주시", "영천시", "예천군", "울릉군", "울진군", "의성군", "청도군", "청송군", "칠곡군", "포항시"],
+  "경상남도": ["거제시", "거창군", "고성군", "김해시", "남해군", "밀양시", "사천시", "산청군", "양산시", "의령군", "진주시", "창녕군", "창원시", "통영시", "하동군", "함안군", "함양군", "합천군"],
+  "제주특별자치도": ["서귀포시", "제주시"],
+};
+
 export default function App() {
   const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -44,10 +159,29 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
+  const [ctpvNm, setCtpvNm] = useState(() => localStorage.getItem("ctpvNm") || "서울특별시");
+  const [sggNm, setSggNm] = useState(() => localStorage.getItem("sggNm") || "강남구");
+  const [showDebug, setShowDebug] = useState(false);
+
+  const sggOptions = useMemo(() => REGION_MAP[ctpvNm] ?? [], [ctpvNm]);
 
   useEffect(() => {
     loadSessions();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("ctpvNm", ctpvNm);
+  }, [ctpvNm]);
+
+  useEffect(() => {
+    localStorage.setItem("sggNm", sggNm);
+  }, [sggNm]);
+
+  const handleCtpvChange = (value: string) => {
+    const nextSgg = REGION_MAP[value]?.[0] || "";
+    setCtpvNm(value);
+    setSggNm(nextSgg);
+  };
 
   const loadSessions = async () => {
     const res = await fetch(`${API_BASE_URL}/api/chat/sessions`);
@@ -66,7 +200,7 @@ export default function App() {
     setChatList([
       {
         role: "assistant",
-        content: "채팅 세션이 시작되었습니다. 궁금한 복지제도를 입력해주세요.",
+        content: `채팅 세션이 시작되었습니다. 현재 지역 설정은 ${ctpvNm} ${sggNm}입니다. 궁금한 복지제도를 입력해주세요.`,
         message_type: "text",
       },
     ]);
@@ -98,33 +232,107 @@ export default function App() {
     setMessage("");
     setLoading(true);
 
-    const res = await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: userMessage }),
-    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}/message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          ctpvNm,
+        }),
+      });
 
-    const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
-    setChatList((prev) => [
-      ...prev,
-      { role: "assistant", content: data.answer, message_type: "text" },
-    ]);
+      const data: ChatResponse = await res.json();
 
-    if (data.policies?.length > 0) {
+      setChatList((prev) => [
+        ...prev,
+        { role: "assistant", content: data.answer, message_type: "text" },
+      ]);
+
+      const central = data.results?.central;
+      const local = data.results?.local;
+
+      if (central?.policies?.length) {
+        setChatList((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: null,
+            message_type: "welfare_cards",
+            message_metadata: {
+              title: "중앙 복지제도",
+              request_url: central.request_url,
+              policies: central.policies,
+            },
+          },
+        ]);
+      }
+
+      if (local?.policies?.length) {
+        setChatList((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: null,
+            message_type: "welfare_cards",
+            message_metadata: {
+              title: `${ctpvNm} ${sggNm} 지자체 복지제도`,
+              request_url: local.request_url,
+              policies: local.policies,
+            },
+          },
+        ]);
+      }
+
+      if (!data.results && data.policies?.length) {
+        setChatList((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: null,
+            message_type: "welfare_cards",
+            message_metadata: { title: "복지제도", policies: data.policies },
+          },
+        ]);
+      }
+
+      if (showDebug) {
+        setChatList((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: JSON.stringify(
+              {
+                requestBody: { message: userMessage, ctpvNm, sggNm },
+                intent: data.intent,
+                centralUrl: central?.request_url,
+                localUrl: local?.request_url,
+              },
+              null,
+              2,
+            ),
+            message_type: "debug",
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error(error);
       setChatList((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: null,
-          message_type: "welfare_cards",
-          message_metadata: { policies: data.policies },
+          content: "요청 처리 중 오류가 발생했습니다. 백엔드 서버와 API 응답 구조를 확인해주세요.",
+          message_type: "text",
         },
       ]);
+    } finally {
+      setLoading(false);
+      await loadSessions();
     }
-
-    setLoading(false);
-    await loadSessions();
   };
 
   const startRecording = async () => {
@@ -145,7 +353,7 @@ export default function App() {
         const formData = new FormData();
         formData.append("file", audioBlob, "recording.webm");
 
-        const response = await fetch("http://127.0.0.1:8000/api/stt/transcribe", {
+        const response = await fetch(`${API_BASE_URL}/api/stt/transcribe`, {
           method: "POST",
           body: formData,
         });
@@ -196,8 +404,22 @@ export default function App() {
     });
   };
 
-  const renderPolicies = (policies: Policy[]) => (
+  const renderPolicies = (policies: Policy[], title?: string, requestUrl?: string | null) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {title && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <strong style={{ color: "#0f172a" }}>{title}</strong>
+          <span style={{ color: "#64748b", fontSize: 12 }}>{policies.length}건</span>
+        </div>
+      )}
+
+      {showDebug && requestUrl && (
+        <details style={{ fontSize: 12, color: "#64748b", wordBreak: "break-all" }}>
+          <summary>요청 URL 확인</summary>
+          {requestUrl}
+        </details>
+      )}
+
       {policies.map((p, i) => (
         <div
           key={`${p.serv_id}-${i}`}
@@ -206,10 +428,23 @@ export default function App() {
             border: "1px solid #dbeafe",
             borderRadius: 12,
             padding: 12,
+            textAlign: "left",
           }}
         >
           <strong style={{ color: "#1e3a8a" }}>{p.serv_nm || "제도명 없음"}</strong>
-          <p style={{ lineHeight: 1.5 }}>{p.serv_dgst || "요약 정보 없음"}</p>
+          {(p.ctpv_nm || p.sgg_nm || p.biz_chr_dept_nm) && (
+            <p style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
+              {[p.ctpv_nm, p.sgg_nm, p.biz_chr_dept_nm].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <p style={{ lineHeight: 1.5, marginTop: 8 }}>{p.serv_dgst || "요약 정보 없음"}</p>
+          {(p.aply_mtd_nm || p.intrs_thema_nm_array || p.last_mod_ymd) && (
+            <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
+              {[p.aply_mtd_nm && `신청: ${p.aply_mtd_nm}`, p.intrs_thema_nm_array && `주제: ${p.intrs_thema_nm_array}`, p.last_mod_ymd && `수정일: ${p.last_mod_ymd}`]
+                .filter(Boolean)
+                .join(" / ")}
+            </p>
+          )}
           {p.serv_dtl_link && (
             <a href={p.serv_dtl_link} target="_blank" rel="noreferrer">
               상세보기 →
@@ -220,8 +455,55 @@ export default function App() {
     </div>
   );
 
+  const RegionSelector = () => (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #dbeafe",
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 14,
+        textAlign: "left",
+      }}
+    >
+      <strong style={{ display: "block", marginBottom: 10, color: "#0f172a" }}>
+        지역 설정
+      </strong>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <select
+          value={ctpvNm}
+          onChange={(e) => handleCtpvChange(e.target.value)}
+          style={{ padding: 10, borderRadius: 10, border: "1px solid #dbeafe" }}
+        >
+          {Object.keys(REGION_MAP).map((city) => (
+            <option key={city} value={city}>
+              {city}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={sggNm}
+          onChange={(e) => setSggNm(e.target.value)}
+          style={{ padding: 10, borderRadius: 10, border: "1px solid #dbeafe" }}
+        >
+          {sggOptions.map((district) => (
+            <option key={district} value={district}>
+              {district}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
+        채팅 요청 시 message와 별도로 ctpvNm, sggNm이 함께 전송됩니다.
+      </p>
+    </div>
+  );
+
   const HomePage = () => (
     <main style={{ flex: 1, padding: 20, background: "#eef3ff", overflowY: "auto" }}>
+      <RegionSelector />
+
       <button
         onClick={createSession}
         style={{
@@ -283,12 +565,16 @@ export default function App() {
         <button onClick={endSession} style={{ float: "right" }} disabled={!sessionId}>
           종료
         </button>
+        <p style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
+          현재 지역: {ctpvNm} {sggNm}
+        </p>
       </div>
 
       <section style={{ flex: 1, padding: 18, overflowY: "auto" }}>
         {chatList.map((chat, index) => {
           const isUser = chat.role === "user";
           const isCards = chat.message_type === "welfare_cards";
+          const isDebug = chat.message_type === "debug";
 
           return (
             <div
@@ -301,15 +587,23 @@ export default function App() {
             >
               <div
                 style={{
-                  maxWidth: "78%",
+                  maxWidth: isDebug ? "92%" : "78%",
                   background: isUser ? "#bcd0ff" : "white",
                   borderRadius: 16,
                   padding: 14,
                   border: isUser ? "none" : "1px solid #dbeafe",
+                  whiteSpace: isDebug ? "pre-wrap" : "normal",
+                  textAlign: "left",
+                  fontSize: isDebug ? 12 : undefined,
+                  overflowX: "auto",
                 }}
               >
                 {isCards
-                  ? renderPolicies(chat.message_metadata?.policies ?? [])
+                  ? renderPolicies(
+                      chat.message_metadata?.policies ?? [],
+                      chat.message_metadata?.title,
+                      chat.message_metadata?.request_url,
+                    )
                   : chat.content}
               </div>
             </div>
@@ -347,12 +641,21 @@ export default function App() {
 
   const SettingsPage = () => (
     <main style={{ flex: 1, padding: 20, background: "#eef3ff" }}>
-      <div style={{ background: "white", padding: 18, borderRadius: 16 }}>
-        <h3>설정</h3>
-        <p>프로필 수정</p>
-        <p>비밀번호 변경</p>
-        <p>언어: 한국어</p>
-        <p>라이트모드</p>
+      <RegionSelector />
+
+      <div style={{ background: "white", padding: 18, borderRadius: 16, textAlign: "left" }}>
+        <h3 style={{ marginTop: 0 }}>설정</h3>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={showDebug}
+            onChange={(e) => setShowDebug(e.target.checked)}
+          />
+          API 테스트 정보 표시
+        </label>
+        <p style={{ color: "#64748b", fontSize: 13, marginTop: 10 }}>
+          켜면 채팅 응답에 요청 body, intent, 중앙/지자체 요청 URL이 함께 표시됩니다.
+        </p>
       </div>
     </main>
   );
@@ -395,9 +698,18 @@ export default function App() {
           borderTop: "1px solid #e5e7eb",
         }}
       >
-        <button onClick={() => setPage("home")}>🏠<br />홈</button>
-        <button onClick={() => setPage("chat")}>💬<br />채팅</button>
-        <button onClick={() => setPage("settings")}>⚙️<br />설정</button>
+        <button onClick={() => setPage("home")}>
+          🏠
+          <br />홈
+        </button>
+        <button onClick={() => setPage("chat")}>
+          💬
+          <br />채팅
+        </button>
+        <button onClick={() => setPage("settings")}>
+          ⚙️
+          <br />설정
+        </button>
       </nav>
     </div>
   );

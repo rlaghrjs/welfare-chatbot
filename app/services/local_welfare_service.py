@@ -1,5 +1,5 @@
-import re
 import html
+import re
 import xml.etree.ElementTree as ET
 from urllib.parse import urlencode
 
@@ -10,14 +10,13 @@ from app.core.config import settings
 from app.models.welfare_api_result import WelfareApiResult
 
 
-def build_welfare_params(intent: dict) -> dict:
+def build_local_welfare_params(intent: dict) -> dict:
     params = {
-        "serviceKey": settings.welfare_api_key,
-        "callTp": "L",
+        "serviceKey": settings.local_welfare_api_key,
         "pageNo": 1,
         "numOfRows": 10,
         "srchKeyCode": "003",
-        "orderBy": "popular",
+        "arrgOrd": "inqNum",
     }
 
     if intent.get("searchWrd"):
@@ -35,76 +34,41 @@ def build_welfare_params(intent: dict) -> dict:
     if intent.get("age"):
         params["age"] = intent["age"]
 
+    if intent.get("ctpvNm"):
+        params["ctpvNm"] = intent["ctpvNm"]
+
+    """
+    if intent.get("sggNm"):
+        params["sggNm"] = intent["sggNm"]
+
+    """
+
     return params
 
 
-def build_request_url(params: dict) -> str:
-    return f"{settings.welfare_api_url}?{urlencode(params)}"
+def build_local_request_url(params: dict) -> str:
+    return f"{settings.local_welfare_api_url}?{urlencode(params)}"
 
 
-def get_text(element: ET.Element, tag_name: str) -> str | None:
-    child = element.find(tag_name)
-    if child is None or child.text is None:
-        return None
-    return child.text.strip()
-
-
-def to_int(value: str | None) -> int | None:
-    try:
-        return int(value) if value else None
-    except ValueError:
-        return None
-
-
-def parse_welfare_xml(xml_text: str) -> list[dict]:
-    root = ET.fromstring(xml_text)
-    serv_list = root.findall(".//servList")
-
-    policies = []
-
-    for item in serv_list:
-        serv_id = get_text(item, "servId")
-
-        if not serv_id:
-            continue
-
-        policies.append({
-            "inq_num": to_int(get_text(item, "inqNum")),
-            "intrs_thema_array": clean_text(get_text(item, "intrsThemaArray")),
-            "jur_mnof_nm": clean_text(get_text(item, "jurMnofNm")),
-            "jur_org_nm": clean_text(get_text(item, "jurOrgNm")),
-            "life_array": clean_text(get_text(item, "lifeArray")),
-            "onap_psblt_yn": clean_text(get_text(item, "onapPsbltYn")),
-            "rprs_ctadr": clean_text(get_text(item, "rprsCtadr")),
-            "serv_dgst": limit_text(get_text(item, "servDgst"), 1500),
-            "serv_dtl_link": clean_text(get_text(item, "servDtlLink")),
-            "serv_id": serv_id,
-            "serv_nm": clean_text(get_text(item, "servNm")),
-            "sprt_cyc_nm": clean_text(get_text(item, "sprtCycNm")),
-            "srv_pvsn_nm": clean_text(get_text(item, "srvPvsnNm")),
-            "svcfrst_reg_ts": clean_text(get_text(item, "svcfrstRegTs")),
-            "trgter_indvdl_array": clean_text(get_text(item, "trgterIndvdlArray")),
-        })
-
-    return remove_duplicate_policies(policies)
-
-
-async def fetch_save_and_return(
+async def fetch_local_save_and_return(
     db: Session,
     session_id,
     query: str,
     intent: dict,
 ) -> dict:
-    params = build_welfare_params(intent)
-    request_url = build_request_url(params)
+    params = build_local_welfare_params(intent)
+    request_url = build_local_request_url(params)
 
     async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(settings.welfare_api_url, params=params)
+        response = await client.get(
+            settings.local_welfare_api_url,
+            params=params,
+        )
         response.raise_for_status()
 
-    policies_data = parse_welfare_xml(response.text)
+    policies_data = parse_local_welfare_xml(response.text)
 
-    saved_results = save_welfare_api_results(
+    saved_results = save_local_welfare_api_results(
         db=db,
         session_id=session_id,
         query=query,
@@ -118,6 +82,58 @@ async def fetch_save_and_return(
         "saved_count": len(saved_results),
         "policies": policies_data,
     }
+
+
+def parse_local_welfare_xml(xml_text: str) -> list[dict]:
+    root = ET.fromstring(xml_text)
+    serv_list = root.findall(".//servList")
+
+    policies = []
+
+    for item in serv_list:
+        serv_id = get_text(item, "servId")
+
+        if not serv_id:
+            continue
+
+        policies.append({
+            "inq_num": to_int(get_text(item, "inqNum")),
+            "serv_id": serv_id,
+            "serv_nm": clean_text(get_text(item, "servNm")),
+            "serv_dgst": limit_text(get_text(item, "servDgst"), 1500),
+            "serv_dtl_link": clean_text(get_text(item, "servDtlLink")),
+
+            "ctpv_nm": clean_text(get_text(item, "ctpvNm")),
+            "sgg_nm": clean_text(get_text(item, "sggNm")),
+            "biz_chr_dept_nm": clean_text(get_text(item, "bizChrDeptNm")),
+
+            "aply_mtd_nm": clean_text(get_text(item, "aplyMtdNm")),
+            "intrs_thema_nm_array": clean_text(get_text(item, "intrsThemaNmArray")),
+            "last_mod_ymd": clean_text(get_text(item, "lastModYmd")),
+
+            "sprt_cyc_nm": clean_text(get_text(item, "sprtCycNm")),
+            "srv_pvsn_nm": clean_text(get_text(item, "srvPvsnNm")),
+
+            "source_type": "local_welfare",
+        })
+
+    return remove_duplicate_policies(policies)
+
+
+def get_text(element: ET.Element, tag_name: str) -> str | None:
+    child = element.find(tag_name)
+
+    if child is None or child.text is None:
+        return None
+
+    return child.text.strip()
+
+
+def to_int(value: str | None) -> int | None:
+    try:
+        return int(value) if value else None
+    except ValueError:
+        return None
 
 
 def clean_text(value: str | None) -> str | None:
@@ -135,7 +151,6 @@ def clean_text(value: str | None) -> str | None:
     return value
 
 
-# 글자수 제한 함수
 def limit_text(value: str | None, max_length: int = 1000) -> str | None:
     value = clean_text(value)
 
@@ -147,7 +162,7 @@ def limit_text(value: str | None, max_length: int = 1000) -> str | None:
 
     return value
 
-# 중복 servId 제한 함수
+
 def remove_duplicate_policies(policies: list[dict]) -> list[dict]:
     seen = set()
     result = []
@@ -167,7 +182,7 @@ def remove_duplicate_policies(policies: list[dict]) -> list[dict]:
     return result
 
 
-def save_welfare_api_results(
+def save_local_welfare_api_results(
     db: Session,
     session_id,
     query: str,
@@ -187,7 +202,7 @@ def save_welfare_api_results(
             service_name=policy.get("serv_nm"),
             summary=policy.get("serv_dgst"),
             raw_data=policy,
-            source="central_welfare",
+            source="local_welfare",
         )
 
         db.add(result)

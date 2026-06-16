@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     welfare_api_url: str
     welfare_api_key: str
 
+    local_welfare_api_url: str
+    local_welfare_api_key: str
+
     openai_api_key: str
 
     model_config = SettingsConfigDict(
