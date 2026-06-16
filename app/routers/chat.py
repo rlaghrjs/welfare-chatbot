@@ -59,6 +59,9 @@ async def send_message(
     if request.ctpvNm:
         intent["ctpvNm"] = request.ctpvNm
 
+    if request.useProfile and request.profile:
+        intent = merge_profile_into_intent(intent, request.profile)
+
     if not is_searchable_intent(intent):
         answer = (
             "복지제도를 검색하려면 대상이나 관심 분야를 조금 더 구체적으로 입력해주세요.\n"
@@ -247,3 +250,25 @@ def is_searchable_intent(intent: dict) -> bool:
     ]
 
     return any(intent.get(key) for key in searchable_keys)
+
+def merge_profile_into_intent(intent: dict, profile) -> dict:
+    if profile is None:
+        return intent
+
+    # 질문에서 나이가 추출되지 않았을 때만 프로필 나이 사용
+    if not intent.get("age") and profile.age:
+        intent["age"] = profile.age
+
+    # 질문에서 생애주기가 추출되지 않았을 때만 프로필 생애주기 사용
+    if not intent.get("lifeArray") and profile.lifeArray:
+        intent["lifeArray"] = profile.lifeArray
+
+    # 질문에서 가구상황이 추출되지 않았을 때만 프로필 가구상황 사용
+    if not intent.get("trgterIndvdlArray") and profile.trgterIndvdlArray:
+        intent["trgterIndvdlArray"] = profile.trgterIndvdlArray
+
+    # 질문에서 관심주제가 추출되지 않았을 때만 프로필 관심주제 사용
+    if not intent.get("intrsThemaArray") and profile.intrsThemaArray:
+        intent["intrsThemaArray"] = profile.intrsThemaArray
+
+    return intent

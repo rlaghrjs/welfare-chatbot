@@ -6,11 +6,19 @@ class CreateSessionResponse(BaseModel):
     status: str
 
 
+class WelfareProfile(BaseModel):
+    age: int | None = None
+    lifeArray: str | None = None
+    trgterIndvdlArray: str | None = None
+    intrsThemaArray: str | None = None
+
+
 class ChatRequest(BaseModel):
     message: str
     ctpvNm: str | None = None
-    sggNm: str | None = None
-
+    useProfile: bool = False
+    profile: WelfareProfile | None = None
+    
 
 class ChatMessageResponse(BaseModel):
     answer: str

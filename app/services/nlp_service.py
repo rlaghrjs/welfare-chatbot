@@ -3,6 +3,7 @@ from typing import Optional, Literal
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from openai import OpenAI
+import re
 
 load_dotenv()
 
@@ -174,7 +175,11 @@ def extract_keywords_by_ai(user_input: str) -> dict:
 
 
 def analyze_message(user_input: str) -> dict:
-    extracted = extract_keywords_by_ai(user_input)
+    try:
+        extracted = extract_keywords_by_ai(user_input)
+    except Exception as e:
+        print(f"[NLP AI 오류] 규칙 기반 분석으로 대체합니다: {e}")
+        extracted = extract_keywords_by_rule(user_input)
 
     search_wrd = normalize_empty(extracted.get("searchWrd"))
     life_keyword = normalize_empty(extracted.get("lifeKeyword"))
@@ -187,7 +192,6 @@ def analyze_message(user_input: str) -> dict:
 
     return {
         "original_message": user_input,
-
         "searchWrd": search_wrd,
 
         "lifeKeyword": life_keyword,
@@ -203,4 +207,62 @@ def analyze_message(user_input: str) -> dict:
         "intrsThemaName": THEME_NAMES.get(theme_code) if theme_code else None,
 
         "age": extracted.get("age"),
+    }
+
+
+def extract_keywords_by_rule(user_input: str) -> dict:
+    text = user_input.strip()
+
+    life_keyword = None
+    target_keyword = None
+    theme_keyword = None
+    search_wrd = None
+    age = None
+
+    for words in LIFE_RULES.values():
+        for word in words:
+            if word in text:
+                life_keyword = word
+                break
+        if life_keyword:
+            break
+
+    for words in TARGET_RULES.values():
+        for word in words:
+            if word in text:
+                target_keyword = word
+                break
+        if target_keyword:
+            break
+
+    for words in THEME_RULES.values():
+        for word in words:
+            if word in text:
+                theme_keyword = word
+                break
+        if theme_keyword:
+            break
+
+    search_keywords = [
+        "월세", "전세", "등록금", "장학금", "학비",
+        "병원비", "수술비", "생활비", "생계비",
+        "기저귀", "분유", "취업", "구직", "대출",
+        "난방비", "전기요금", "돌봄", "임대"
+    ]
+
+    for word in search_keywords:
+        if word in text:
+            search_wrd = word
+            break
+
+    age_match = re.search(r"(\d{1,3})\s*(살|세|대)", text)
+    if age_match:
+        age = int(age_match.group(1))
+
+    return {
+        "searchWrd": search_wrd,
+        "lifeKeyword": life_keyword,
+        "targetKeyword": target_keyword,
+        "themeKeyword": theme_keyword,
+        "age": age,
     }

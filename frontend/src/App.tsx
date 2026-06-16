@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Policy {
   serv_id?: string | null;
@@ -6,27 +6,26 @@ interface Policy {
   serv_dgst?: string | null;
   serv_dtl_link?: string | null;
   ctpv_nm?: string | null;
-  sgg_nm?: string | null;
   biz_chr_dept_nm?: string | null;
   aply_mtd_nm?: string | null;
-  intrs_thema_nm_array?: string | null;
-  last_mod_ymd?: string | null;
+  srv_pvsn_nm?: string | null;
 }
 
-interface WelfareGroup {
+interface WelfareResultGroup {
   request_url?: string | null;
   saved_count?: number;
   policies?: Policy[];
 }
 
-interface ChatResponse {
+interface ChatApiResponse {
   answer: string;
   intent?: Record<string, unknown>;
-  policies?: Policy[];
   results?: {
-    central?: WelfareGroup;
-    local?: WelfareGroup;
+    central?: WelfareResultGroup;
+    local?: WelfareResultGroup;
   };
+  policies?: Policy[];
+  request_url?: string | null;
 }
 
 interface ChatMessage {
@@ -37,7 +36,8 @@ interface ChatMessage {
   message_metadata?: {
     policies?: Policy[];
     title?: string;
-    request_url?: string | null;
+    requestUrl?: string | null;
+    intent?: Record<string, unknown>;
   } | null;
 }
 
@@ -54,102 +54,84 @@ interface SessionDetailResponse {
   messages: ChatMessage[];
 }
 
+interface WelfareProfile {
+  age?: number | "";
+  lifeArray?: string;
+  trgterIndvdlArray?: string;
+  intrsThemaArray?: string;
+}
+
 type Page = "home" | "chat" | "settings";
 
-type RegionMap = Record<string, string[]>;
+const API_BASE_URL = "http://127.0.0.1:8000";
 
-const REGION_MAP: RegionMap = {
-  "서울특별시": [
-    "강남구",
-    "강동구",
-    "강북구",
-    "강서구",
-    "관악구",
-    "광진구",
-    "구로구",
-    "금천구",
-    "노원구",
-    "도봉구",
-    "동대문구",
-    "동작구",
-    "마포구",
-    "서대문구",
-    "서초구",
-    "성동구",
-    "성북구",
-    "송파구",
-    "양천구",
-    "영등포구",
-    "용산구",
-    "은평구",
-    "종로구",
-    "중구",
-    "중랑구",
-  ],
-  "인천광역시": [
-    "강화군",
-    "계양구",
-    "남동구",
-    "동구",
-    "미추홀구",
-    "부평구",
-    "서구",
-    "연수구",
-    "옹진군",
-    "중구",
-  ],
-  "경기도": [
-    "가평군",
-    "고양시",
-    "과천시",
-    "광명시",
-    "광주시",
-    "구리시",
-    "군포시",
-    "김포시",
-    "남양주시",
-    "동두천시",
-    "부천시",
-    "성남시",
-    "수원시",
-    "시흥시",
-    "안산시",
-    "안성시",
-    "안양시",
-    "양주시",
-    "양평군",
-    "여주시",
-    "연천군",
-    "오산시",
-    "용인시",
-    "의왕시",
-    "의정부시",
-    "이천시",
-    "파주시",
-    "평택시",
-    "포천시",
-    "하남시",
-    "화성시",
-  ],
-  "부산광역시": ["강서구", "금정구", "기장군", "남구", "동구", "동래구", "부산진구", "북구", "사상구", "사하구", "서구", "수영구", "연제구", "영도구", "중구", "해운대구"],
-  "대구광역시": ["군위군", "남구", "달서구", "달성군", "동구", "북구", "서구", "수성구", "중구"],
-  "광주광역시": ["광산구", "남구", "동구", "북구", "서구"],
-  "대전광역시": ["대덕구", "동구", "서구", "유성구", "중구"],
-  "울산광역시": ["남구", "동구", "북구", "울주군", "중구"],
-  "세종특별자치시": ["세종특별자치시"],
-  "강원특별자치도": ["강릉시", "고성군", "동해시", "삼척시", "속초시", "양구군", "양양군", "영월군", "원주시", "인제군", "정선군", "철원군", "춘천시", "태백시", "평창군", "홍천군", "화천군", "횡성군"],
-  "충청북도": ["괴산군", "단양군", "보은군", "영동군", "옥천군", "음성군", "제천시", "증평군", "진천군", "청주시", "충주시"],
-  "충청남도": ["계룡시", "공주시", "금산군", "논산시", "당진시", "보령시", "부여군", "서산시", "서천군", "아산시", "예산군", "천안시", "청양군", "태안군", "홍성군"],
-  "전북특별자치도": ["고창군", "군산시", "김제시", "남원시", "무주군", "부안군", "순창군", "완주군", "익산시", "임실군", "장수군", "전주시", "정읍시", "진안군"],
-  "전라남도": ["강진군", "고흥군", "곡성군", "광양시", "구례군", "나주시", "담양군", "목포시", "무안군", "보성군", "순천시", "신안군", "여수시", "영광군", "영암군", "완도군", "장성군", "장흥군", "진도군", "함평군", "해남군", "화순군"],
-  "경상북도": ["경산시", "경주시", "고령군", "구미시", "김천시", "문경시", "봉화군", "상주시", "성주군", "안동시", "영덕군", "영양군", "영주시", "영천시", "예천군", "울릉군", "울진군", "의성군", "청도군", "청송군", "칠곡군", "포항시"],
-  "경상남도": ["거제시", "거창군", "고성군", "김해시", "남해군", "밀양시", "사천시", "산청군", "양산시", "의령군", "진주시", "창녕군", "창원시", "통영시", "하동군", "함안군", "함양군", "합천군"],
-  "제주특별자치도": ["서귀포시", "제주시"],
+const CTPV_OPTIONS = [
+  "서울특별시",
+  "부산광역시",
+  "대구광역시",
+  "인천광역시",
+  "광주광역시",
+  "대전광역시",
+  "울산광역시",
+  "세종특별자치시",
+  "경기도",
+  "강원특별자치도",
+  "충청북도",
+  "충청남도",
+  "전북특별자치도",
+  "전라남도",
+  "경상북도",
+  "경상남도",
+  "제주특별자치도",
+];
+
+const LIFE_OPTIONS = [
+  { code: "", name: "선택 안 함" },
+  { code: "001", name: "영유아" },
+  { code: "002", name: "아동" },
+  { code: "003", name: "청소년" },
+  { code: "004", name: "청년" },
+  { code: "005", name: "중장년" },
+  { code: "006", name: "노년" },
+  { code: "007", name: "임신·출산" },
+];
+
+const TARGET_OPTIONS = [
+  { code: "", name: "선택 안 함" },
+  { code: "010", name: "다문화·탈북민" },
+  { code: "020", name: "다자녀" },
+  { code: "030", name: "보훈대상자" },
+  { code: "040", name: "장애인" },
+  { code: "050", name: "저소득" },
+  { code: "060", name: "한부모·조손" },
+];
+
+const THEME_OPTIONS = [
+  { code: "", name: "선택 안 함" },
+  { code: "010", name: "신체건강" },
+  { code: "020", name: "정신건강" },
+  { code: "030", name: "생활지원" },
+  { code: "040", name: "주거" },
+  { code: "050", name: "일자리" },
+  { code: "060", name: "문화·여가" },
+  { code: "070", name: "안전·위기" },
+  { code: "080", name: "임신·출산" },
+  { code: "090", name: "보육" },
+  { code: "100", name: "교육" },
+  { code: "120", name: "보호·돌봄" },
+  { code: "130", name: "서민금융" },
+  { code: "140", name: "법률" },
+  { code: "160", name: "에너지" },
+];
+
+const DEFAULT_PROFILE: WelfareProfile = {
+  age: "",
+  lifeArray: "",
+  trgterIndvdlArray: "",
+  intrsThemaArray: "",
 };
 
 export default function App() {
-  const API_BASE_URL = "http://127.0.0.1:8000";
-
   const [page, setPage] = useState<Page>("home");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState("");
@@ -159,28 +141,53 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
-  const [ctpvNm, setCtpvNm] = useState(() => localStorage.getItem("ctpvNm") || "서울특별시");
-  const [sggNm, setSggNm] = useState(() => localStorage.getItem("sggNm") || "강남구");
-  const [showDebug, setShowDebug] = useState(false);
 
-  const sggOptions = useMemo(() => REGION_MAP[ctpvNm] ?? [], [ctpvNm]);
+  // 지역은 일반 검색/프로필 맞춤 검색 모두에 적용되는 공통 검색 지역
+  const [ctpvNm, setCtpvNm] = useState("서울특별시");
+
+  // 프로필은 맞춤 검색일 때만 적용
+  const [useProfile, setUseProfile] = useState(false);
+  const [showDebug, setShowDebug] = useState(true);
+  const [profile, setProfile] = useState<WelfareProfile>(DEFAULT_PROFILE);
 
   useEffect(() => {
     loadSessions();
+    loadSettings();
   }, []);
 
-  useEffect(() => {
+  const loadSettings = () => {
+    const savedProfile = localStorage.getItem("welfareProfile");
+    const savedUseProfile = localStorage.getItem("useWelfareProfile");
+    const savedDebug = localStorage.getItem("showWelfareDebug");
+    const savedCtpvNm = localStorage.getItem("ctpvNm");
+
+    if (savedProfile) {
+      try {
+        setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(savedProfile) });
+      } catch {
+        setProfile(DEFAULT_PROFILE);
+      }
+    }
+
+    if (savedCtpvNm) {
+      setCtpvNm(savedCtpvNm);
+    }
+
+    if (savedUseProfile) {
+      setUseProfile(savedUseProfile === "true");
+    }
+
+    if (savedDebug) {
+      setShowDebug(savedDebug === "true");
+    }
+  };
+
+  const saveSettings = () => {
+    localStorage.setItem("welfareProfile", JSON.stringify(profile));
     localStorage.setItem("ctpvNm", ctpvNm);
-  }, [ctpvNm]);
-
-  useEffect(() => {
-    localStorage.setItem("sggNm", sggNm);
-  }, [sggNm]);
-
-  const handleCtpvChange = (value: string) => {
-    const nextSgg = REGION_MAP[value]?.[0] || "";
-    setCtpvNm(value);
-    setSggNm(nextSgg);
+    localStorage.setItem("useWelfareProfile", String(useProfile));
+    localStorage.setItem("showWelfareDebug", String(showDebug));
+    alert("설정이 저장되었습니다.");
   };
 
   const loadSessions = async () => {
@@ -200,7 +207,7 @@ export default function App() {
     setChatList([
       {
         role: "assistant",
-        content: `채팅 세션이 시작되었습니다. 현재 지역 설정은 ${ctpvNm} ${sggNm}입니다. 궁금한 복지제도를 입력해주세요.`,
+        content: "채팅 세션이 시작되었습니다. 궁금한 복지제도를 입력해주세요.",
         message_type: "text",
       },
     ]);
@@ -219,6 +226,28 @@ export default function App() {
     setPage("chat");
   };
 
+  const buildRequestProfile = () => {
+    const requestProfile: WelfareProfile = {};
+
+    if (profile.age !== "" && profile.age !== undefined) {
+      requestProfile.age = Number(profile.age);
+    }
+
+    if (profile.lifeArray) {
+      requestProfile.lifeArray = profile.lifeArray;
+    }
+
+    if (profile.trgterIndvdlArray) {
+      requestProfile.trgterIndvdlArray = profile.trgterIndvdlArray;
+    }
+
+    if (profile.intrsThemaArray) {
+      requestProfile.intrsThemaArray = profile.intrsThemaArray;
+    }
+
+    return requestProfile;
+  };
+
   const sendMessage = async () => {
     if (!sessionId || !message.trim()) return;
 
@@ -233,30 +262,34 @@ export default function App() {
     setLoading(true);
 
     try {
+      const body = {
+        message: userMessage,
+        ctpvNm,
+        useProfile,
+        profile: useProfile ? buildRequestProfile() : null,
+      };
+
       const res = await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          ctpvNm,
-        }),
+        body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      const data: ChatApiResponse = await res.json();
 
-      const data: ChatResponse = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.answer || "서버 오류가 발생했습니다.");
+      }
 
       setChatList((prev) => [
         ...prev,
         { role: "assistant", content: data.answer, message_type: "text" },
       ]);
 
-      const central = data.results?.central;
-      const local = data.results?.local;
+      const centralPolicies = data.results?.central?.policies ?? [];
+      const localPolicies = data.results?.local?.policies ?? [];
 
-      if (central?.policies?.length) {
+      if (centralPolicies.length > 0) {
         setChatList((prev) => [
           ...prev,
           {
@@ -265,14 +298,14 @@ export default function App() {
             message_type: "welfare_cards",
             message_metadata: {
               title: "중앙 복지제도",
-              request_url: central.request_url,
-              policies: central.policies,
+              policies: centralPolicies,
+              requestUrl: data.results?.central?.request_url,
             },
           },
         ]);
       }
 
-      if (local?.policies?.length) {
+      if (localPolicies.length > 0) {
         setChatList((prev) => [
           ...prev,
           {
@@ -280,14 +313,32 @@ export default function App() {
             content: null,
             message_type: "welfare_cards",
             message_metadata: {
-              title: `${ctpvNm} ${sggNm} 지자체 복지제도`,
-              request_url: local.request_url,
-              policies: local.policies,
+              title: "지자체 복지제도",
+              policies: localPolicies,
+              requestUrl: data.results?.local?.request_url,
             },
           },
         ]);
       }
 
+      if (showDebug) {
+        setChatList((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: null,
+            message_type: "debug",
+            message_metadata: {
+              requestUrl:
+                `중앙 요청 URL:\n${data.results?.central?.request_url || "없음"}\n\n` +
+                `지자체 요청 URL:\n${data.results?.local?.request_url || "없음"}`,
+              intent: data.intent,
+            },
+          },
+        ]);
+      }
+
+      // 구버전 백엔드 호환
       if (!data.results && data.policies?.length) {
         setChatList((prev) => [
           ...prev,
@@ -299,33 +350,13 @@ export default function App() {
           },
         ]);
       }
-
-      if (showDebug) {
-        setChatList((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: JSON.stringify(
-              {
-                requestBody: { message: userMessage, ctpvNm, sggNm },
-                intent: data.intent,
-                centralUrl: central?.request_url,
-                localUrl: local?.request_url,
-              },
-              null,
-              2,
-            ),
-            message_type: "debug",
-          },
-        ]);
-      }
     } catch (error) {
       console.error(error);
       setChatList((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "요청 처리 중 오류가 발생했습니다. 백엔드 서버와 API 응답 구조를 확인해주세요.",
+          content: "요청 처리 중 오류가 발생했습니다. 백엔드 로그를 확인해주세요.",
           message_type: "text",
         },
       ]);
@@ -404,19 +435,53 @@ export default function App() {
     });
   };
 
+  const selectStyle: React.CSSProperties = {
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid #dbeafe",
+    boxSizing: "border-box",
+    background: "white",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: 12,
+    borderRadius: 12,
+    border: "1px solid #dbeafe",
+    boxSizing: "border-box",
+    background: "white",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: 13,
+    color: "#475569",
+    marginBottom: 6,
+    fontWeight: 700,
+  };
+
   const renderPolicies = (policies: Policy[], title?: string, requestUrl?: string | null) => (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {title && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-          <strong style={{ color: "#0f172a" }}>{title}</strong>
-          <span style={{ color: "#64748b", fontSize: 12 }}>{policies.length}건</span>
+        <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+          {title} ({policies.length}건)
         </div>
       )}
 
       {showDebug && requestUrl && (
-        <details style={{ fontSize: 12, color: "#64748b", wordBreak: "break-all" }}>
-          <summary>요청 URL 확인</summary>
-          {requestUrl}
+        <details
+          style={{
+            fontSize: 11,
+            color: "#64748b",
+            background: "#f8fafc",
+            border: "1px dashed #cbd5e1",
+            borderRadius: 10,
+            padding: 8,
+          }}
+        >
+          <summary>요청 URL 보기</summary>
+          <div style={{ wordBreak: "break-all", marginTop: 6 }}>{requestUrl}</div>
         </details>
       )}
 
@@ -432,19 +497,25 @@ export default function App() {
           }}
         >
           <strong style={{ color: "#1e3a8a" }}>{p.serv_nm || "제도명 없음"}</strong>
-          {(p.ctpv_nm || p.sgg_nm || p.biz_chr_dept_nm) && (
-            <p style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
-              {[p.ctpv_nm, p.sgg_nm, p.biz_chr_dept_nm].filter(Boolean).join(" · ")}
+
+          {(p.ctpv_nm || p.biz_chr_dept_nm || p.srv_pvsn_nm) && (
+            <p style={{ fontSize: 12, color: "#64748b", margin: "6px 0" }}>
+              {p.ctpv_nm ? `지역: ${p.ctpv_nm}` : ""}
+              {p.ctpv_nm && p.srv_pvsn_nm ? " · " : ""}
+              {p.srv_pvsn_nm ? `제공유형: ${p.srv_pvsn_nm}` : ""}
             </p>
           )}
-          <p style={{ lineHeight: 1.5, marginTop: 8 }}>{p.serv_dgst || "요약 정보 없음"}</p>
-          {(p.aply_mtd_nm || p.intrs_thema_nm_array || p.last_mod_ymd) && (
-            <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
-              {[p.aply_mtd_nm && `신청: ${p.aply_mtd_nm}`, p.intrs_thema_nm_array && `주제: ${p.intrs_thema_nm_array}`, p.last_mod_ymd && `수정일: ${p.last_mod_ymd}`]
-                .filter(Boolean)
-                .join(" / ")}
+
+          <p style={{ lineHeight: 1.5, marginTop: 8 }}>
+            {p.serv_dgst || "요약 정보 없음"}
+          </p>
+
+          {p.aply_mtd_nm && (
+            <p style={{ fontSize: 12, color: "#475569", marginTop: 8 }}>
+              신청방법: {p.aply_mtd_nm}
             </p>
           )}
+
           {p.serv_dtl_link && (
             <a href={p.serv_dtl_link} target="_blank" rel="noreferrer">
               상세보기 →
@@ -455,55 +526,37 @@ export default function App() {
     </div>
   );
 
-  const RegionSelector = () => (
-    <div
+  const renderDebug = (chat: ChatMessage) => (
+    <details
       style={{
-        background: "white",
-        border: "1px solid #dbeafe",
-        borderRadius: 16,
-        padding: 14,
-        marginBottom: 14,
+        fontSize: 12,
         textAlign: "left",
+        color: "#475569",
+        whiteSpace: "pre-wrap",
       }}
     >
-      <strong style={{ display: "block", marginBottom: 10, color: "#0f172a" }}>
-        지역 설정
-      </strong>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <select
-          value={ctpvNm}
-          onChange={(e) => handleCtpvChange(e.target.value)}
-          style={{ padding: 10, borderRadius: 10, border: "1px solid #dbeafe" }}
-        >
-          {Object.keys(REGION_MAP).map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={sggNm}
-          onChange={(e) => setSggNm(e.target.value)}
-          style={{ padding: 10, borderRadius: 10, border: "1px solid #dbeafe" }}
-        >
-          {sggOptions.map((district) => (
-            <option key={district} value={district}>
-              {district}
-            </option>
-          ))}
-        </select>
+      <summary>디버그 정보</summary>
+      <div style={{ marginTop: 8, wordBreak: "break-all" }}>
+        {chat.message_metadata?.requestUrl}
       </div>
-      <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>
-        채팅 요청 시 message와 별도로 ctpvNm, sggNm이 함께 전송됩니다.
-      </p>
-    </div>
+      {chat.message_metadata?.intent && (
+        <pre
+          style={{
+            marginTop: 8,
+            padding: 10,
+            background: "#f1f5f9",
+            borderRadius: 8,
+            overflowX: "auto",
+          }}
+        >
+          {JSON.stringify(chat.message_metadata.intent, null, 2)}
+        </pre>
+      )}
+    </details>
   );
 
   const HomePage = () => (
     <main style={{ flex: 1, padding: 20, background: "#eef3ff", overflowY: "auto" }}>
-      <RegionSelector />
-
       <button
         onClick={createSession}
         style={{
@@ -519,6 +572,34 @@ export default function App() {
       >
         새 채팅 시작
       </button>
+
+      <div
+        style={{
+          background: "white",
+          border: "1px solid #dbeafe",
+          borderRadius: 16,
+          padding: 14,
+          marginBottom: 18,
+          textAlign: "left",
+        }}
+      >
+        <strong>현재 검색 설정</strong>
+        <p style={{ color: "#64748b", marginTop: 6 }}>
+          지역: {ctpvNm} · {useProfile ? "프로필 맞춤 검색" : "일반 검색"}
+        </p>
+        <button
+          onClick={() => setPage("settings")}
+          style={{
+            marginTop: 10,
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #bfdbfe",
+            background: "#eff6ff",
+          }}
+        >
+          검색 설정하기
+        </button>
+      </div>
 
       <input
         placeholder="채팅 검색..."
@@ -546,7 +627,7 @@ export default function App() {
             marginBottom: 12,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
             <strong>{session.title || "제목 없음"}</strong>
             <span style={{ color: "#94a3b8", fontSize: 12 }}>
               {formatDate(session.created_at)}
@@ -565,8 +646,61 @@ export default function App() {
         <button onClick={endSession} style={{ float: "right" }} disabled={!sessionId}>
           종료
         </button>
-        <p style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
-          현재 지역: {ctpvNm} {sggNm}
+
+        <div
+          style={{
+            marginTop: 12,
+            background: "#f8fafc",
+            borderRadius: 14,
+            padding: 8,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+          }}
+        >
+          <button
+            onClick={() => {
+              setUseProfile(false);
+              localStorage.setItem("useWelfareProfile", "false");
+            }}
+            style={{
+              padding: 10,
+              borderRadius: 12,
+              border: "none",
+              background: !useProfile ? "#2563eb" : "white",
+              color: !useProfile ? "white" : "#334155",
+              fontWeight: 700,
+            }}
+          >
+            일반 검색
+          </button>
+          <button
+            onClick={() => {
+              setUseProfile(true);
+              localStorage.setItem("useWelfareProfile", "true");
+            }}
+            style={{
+              padding: 10,
+              borderRadius: 12,
+              border: "none",
+              background: useProfile ? "#2563eb" : "white",
+              color: useProfile ? "white" : "#334155",
+              fontWeight: 700,
+            }}
+          >
+            프로필 맞춤
+          </button>
+        </div>
+
+        <p style={{ fontSize: 12, color: "#64748b", marginTop: 8, textAlign: "left" }}>
+          검색 지역: {ctpvNm}
+          {useProfile && profile.age ? ` · ${profile.age}세` : ""}
+          {useProfile && profile.lifeArray
+            ? ` · ${LIFE_OPTIONS.find((x) => x.code === profile.lifeArray)?.name}`
+            : ""}
+          {useProfile && profile.intrsThemaArray
+            ? ` · ${THEME_OPTIONS.find((x) => x.code === profile.intrsThemaArray)?.name}`
+            : ""}
         </p>
       </div>
 
@@ -587,24 +721,23 @@ export default function App() {
             >
               <div
                 style={{
-                  maxWidth: isDebug ? "92%" : "78%",
+                  maxWidth: isCards || isDebug ? "92%" : "78%",
                   background: isUser ? "#bcd0ff" : "white",
                   borderRadius: 16,
                   padding: 14,
                   border: isUser ? "none" : "1px solid #dbeafe",
-                  whiteSpace: isDebug ? "pre-wrap" : "normal",
                   textAlign: "left",
-                  fontSize: isDebug ? 12 : undefined,
-                  overflowX: "auto",
                 }}
               >
                 {isCards
                   ? renderPolicies(
                       chat.message_metadata?.policies ?? [],
                       chat.message_metadata?.title,
-                      chat.message_metadata?.request_url,
+                      chat.message_metadata?.requestUrl
                     )
-                  : chat.content}
+                  : isDebug
+                    ? renderDebug(chat)
+                    : chat.content}
               </div>
             </div>
           );
@@ -617,7 +750,11 @@ export default function App() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-          placeholder="궁금한 복지제도를 입력해보세요..."
+          placeholder={
+            useProfile
+              ? "프로필 기준으로 궁금한 복지제도를 입력해보세요..."
+              : "궁금한 복지제도를 입력해보세요..."
+          }
           disabled={!sessionId || loading}
           style={{
             flex: 1,
@@ -640,22 +777,172 @@ export default function App() {
   );
 
   const SettingsPage = () => (
-    <main style={{ flex: 1, padding: 20, background: "#eef3ff" }}>
-      <RegionSelector />
-
+    <main style={{ flex: 1, padding: 20, background: "#eef3ff", overflowY: "auto" }}>
       <div style={{ background: "white", padding: 18, borderRadius: 16, textAlign: "left" }}>
-        <h3 style={{ marginTop: 0 }}>설정</h3>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={showDebug}
-            onChange={(e) => setShowDebug(e.target.checked)}
-          />
-          API 테스트 정보 표시
-        </label>
-        <p style={{ color: "#64748b", fontSize: 13, marginTop: 10 }}>
-          켜면 채팅 응답에 요청 body, intent, 중앙/지자체 요청 URL이 함께 표시됩니다.
+        <h3 style={{ marginTop: 0 }}>검색 설정</h3>
+        <p style={{ color: "#64748b", fontSize: 13, marginBottom: 18 }}>
+          지역은 일반 검색과 프로필 맞춤 검색 모두에 적용됩니다. 나이, 생애주기, 가구상황,
+          관심주제는 프로필 맞춤 검색에서만 적용됩니다.
         </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={labelStyle}>검색 지역</label>
+            <select
+              value={ctpvNm}
+              onChange={(e) => setCtpvNm(e.target.value)}
+              style={selectStyle}
+            >
+              {CTPV_OPTIONS.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>검색 방식</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <button
+                onClick={() => setUseProfile(false)}
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #bfdbfe",
+                  background: !useProfile ? "#2563eb" : "white",
+                  color: !useProfile ? "white" : "#334155",
+                  fontWeight: 700,
+                }}
+              >
+                일반 검색
+              </button>
+              <button
+                onClick={() => setUseProfile(true)}
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #bfdbfe",
+                  background: useProfile ? "#2563eb" : "white",
+                  color: useProfile ? "white" : "#334155",
+                  fontWeight: 700,
+                }}
+              >
+                프로필 맞춤
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>나이</label>
+            <input
+              type="number"
+              min={0}
+              max={120}
+              value={profile.age ?? ""}
+              onChange={(e) =>
+                setProfile((prev) => ({
+                  ...prev,
+                  age: e.target.value === "" ? "" : Number(e.target.value),
+                }))
+              }
+              placeholder="예: 24"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>생애주기</label>
+            <select
+              value={profile.lifeArray || ""}
+              onChange={(e) =>
+                setProfile((prev) => ({
+                  ...prev,
+                  lifeArray: e.target.value,
+                }))
+              }
+              style={selectStyle}
+            >
+              {LIFE_OPTIONS.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>가구상황</label>
+            <select
+              value={profile.trgterIndvdlArray || ""}
+              onChange={(e) =>
+                setProfile((prev) => ({
+                  ...prev,
+                  trgterIndvdlArray: e.target.value,
+                }))
+              }
+              style={selectStyle}
+            >
+              {TARGET_OPTIONS.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>관심주제</label>
+            <select
+              value={profile.intrsThemaArray || ""}
+              onChange={(e) =>
+                setProfile((prev) => ({
+                  ...prev,
+                  intrsThemaArray: e.target.value,
+                }))
+              }
+              style={selectStyle}
+            >
+              {THEME_OPTIONS.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              color: "#475569",
+              fontSize: 14,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showDebug}
+              onChange={(e) => setShowDebug(e.target.checked)}
+            />
+            요청 URL / intent 디버그 표시
+          </label>
+
+          <button
+            onClick={saveSettings}
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              border: "none",
+              background: "#2563eb",
+              color: "white",
+              fontWeight: 800,
+              marginTop: 8,
+            }}
+          >
+            저장하기
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -698,18 +985,9 @@ export default function App() {
           borderTop: "1px solid #e5e7eb",
         }}
       >
-        <button onClick={() => setPage("home")}>
-          🏠
-          <br />홈
-        </button>
-        <button onClick={() => setPage("chat")}>
-          💬
-          <br />채팅
-        </button>
-        <button onClick={() => setPage("settings")}>
-          ⚙️
-          <br />설정
-        </button>
+        <button onClick={() => setPage("home")}>🏠<br />홈</button>
+        <button onClick={() => setPage("chat")}>💬<br />채팅</button>
+        <button onClick={() => setPage("settings")}>⚙️<br />설정</button>
       </nav>
     </div>
   );
