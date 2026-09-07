@@ -1,3 +1,4 @@
+from app.services.welfare_api_common import redact_request_url
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -228,7 +229,7 @@ def get_session_detail(
             {
                 "id": str(result.id),
                 "query": result.query,
-                "request_url": result.request_url,
+                "request_url": redact_request_url(result.request_url) if result.request_url else None,
                 "intent": result.intent,
                 "service_id": result.service_id,
                 "service_name": result.service_name,
@@ -249,14 +250,14 @@ def is_searchable_intent(intent: dict) -> bool:
         "age",
     ]
 
-    return any(intent.get(key) for key in searchable_keys)
+    return any(intent.get(key) for key in searchable_keys) or intent.get("age") == 0
 
 def merge_profile_into_intent(intent: dict, profile) -> dict:
     if profile is None:
         return intent
 
     # 질문에서 나이가 추출되지 않았을 때만 프로필 나이 사용
-    if not intent.get("age") and profile.age:
+    if intent.get("age") in (None, "") and profile.age is not None:
         intent["age"] = profile.age
 
     # 질문에서 생애주기가 추출되지 않았을 때만 프로필 생애주기 사용

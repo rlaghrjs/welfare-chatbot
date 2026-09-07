@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from app.core.exception_handlers import welfare_api_error_handler
+from app.services.welfare_api_common import WelfareAPIError
 
 from app.core.config import settings
 from app.db.init_db import init_db
@@ -12,6 +14,9 @@ app = FastAPI(
     description="복지 OpenAmyPI 데이터를 수집하고 PostgreSQL에 저장하는 FastAPI 서버",
     version="1.0.0",
 )
+
+
+app.add_exception_handler(WelfareAPIError, welfare_api_error_handler)
 
 
 app.include_router(stt_router)

@@ -1,13 +1,10 @@
-import html
-import re
-import xml.etree.ElementTree as ET
-from urllib.parse import urlencode
-
-import httpx
 from sqlalchemy.orm import Session
-
 from app.core.config import settings
 from app.models.welfare_api_result import WelfareApiResult
+from app.services.welfare_api_common import (
+    build_safe_request_url, clean_text, fetch_xml, get_text, limit_text,
+    parse_xml, remove_duplicate_policies, save_api_results, to_int,
+)
 
 
 def build_local_welfare_params(intent: dict) -> dict:
@@ -31,7 +28,7 @@ def build_local_welfare_params(intent: dict) -> dict:
     if intent.get("intrsThemaArray"):
         params["intrsThemaArray"] = intent["intrsThemaArray"]
 
-    if intent.get("age"):
+    if intent.get("age") is not None and intent.get("age") != "":
         params["age"] = intent["age"]
 
     if intent.get("ctpvNm"):
@@ -47,7 +44,7 @@ def build_local_welfare_params(intent: dict) -> dict:
 
 
 def build_local_request_url(params: dict) -> str:
-    return f"{settings.local_welfare_api_url}?{urlencode(params)}"
+    return build_safe_request_url(settings.local_welfare_api_url, params)
 
 
 async def fetch_local_save_and_return(
@@ -59,14 +56,8 @@ async def fetch_local_save_and_return(
     params = build_local_welfare_params(intent)
     request_url = build_local_request_url(params)
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(
-            settings.local_welfare_api_url,
-            params=params,
-        )
-        response.raise_for_status()
-
-    policies_data = parse_local_welfare_xml(response.text)
+    xml_text = await fetch_xml(settings.local_welfare_api_url, params)
+    policies_data = parse_local_welfare_xml(xml_text)
 
     saved_results = save_local_welfare_api_results(
         db=db,
@@ -85,7 +76,7 @@ async def fetch_local_save_and_return(
 
 
 def parse_local_welfare_xml(xml_text: str) -> list[dict]:
-    root = ET.fromstring(xml_text)
+    root = parse_xml(xml_text)
     serv_list = root.findall(".//servList")
 
     policies = []
@@ -120,68 +111,6 @@ def parse_local_welfare_xml(xml_text: str) -> list[dict]:
     return remove_duplicate_policies(policies)
 
 
-def get_text(element: ET.Element, tag_name: str) -> str | None:
-    child = element.find(tag_name)
-
-    if child is None or child.text is None:
-        return None
-
-    return child.text.strip()
-
-
-def to_int(value: str | None) -> int | None:
-    try:
-        return int(value) if value else None
-    except ValueError:
-        return None
-
-
-def clean_text(value: str | None) -> str | None:
-    if value is None:
-        return None
-
-    value = html.unescape(value)
-    value = re.sub(r"<[^>]+>", " ", value)
-    value = re.sub(r"\s+", " ", value)
-    value = value.strip()
-
-    if value in ["", "-", "null", "None", "정보 없음"]:
-        return None
-
-    return value
-
-
-def limit_text(value: str | None, max_length: int = 1000) -> str | None:
-    value = clean_text(value)
-
-    if value is None:
-        return None
-
-    if len(value) > max_length:
-        return value[:max_length] + "..."
-
-    return value
-
-
-def remove_duplicate_policies(policies: list[dict]) -> list[dict]:
-    seen = set()
-    result = []
-
-    for policy in policies:
-        serv_id = policy.get("serv_id")
-
-        if not serv_id:
-            continue
-
-        if serv_id in seen:
-            continue
-
-        seen.add(serv_id)
-        result.append(policy)
-
-    return result
-
-
 def save_local_welfare_api_results(
     db: Session,
     session_id,
@@ -190,27 +119,6 @@ def save_local_welfare_api_results(
     intent: dict,
     policies: list[dict],
 ) -> list[WelfareApiResult]:
-    saved_results = []
-
-    for policy in policies:
-        result = WelfareApiResult(
-            session_id=session_id,
-            query=query,
-            request_url=request_url,
-            intent=intent,
-            service_id=policy.get("serv_id"),
-            service_name=policy.get("serv_nm"),
-            summary=policy.get("serv_dgst"),
-            raw_data=policy,
-            source="local_welfare",
-        )
-
-        db.add(result)
-        saved_results.append(result)
-
-    db.commit()
-
-    for result in saved_results:
-        db.refresh(result)
-
-    return saved_results
+    return save_api_results(
+        db, session_id, query, request_url, intent, policies, source="local_welfare",
+    )

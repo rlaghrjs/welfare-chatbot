@@ -1,3 +1,4 @@
+from app.services.welfare_api_common import redact_request_url
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -38,7 +39,7 @@ def get_welfare_results(
             "id": str(item.id),
             "session_id": str(item.session_id),
             "query": item.query,
-            "request_url": item.request_url,
+            "request_url": redact_request_url(item.request_url) if item.request_url else None,
             "intent": item.intent,
             "service_id": item.service_id,
             "service_name": item.service_name,
