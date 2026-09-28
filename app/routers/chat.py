@@ -1,275 +1,115 @@
-from app.services.welfare_api_common import redact_request_url
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
-
 from app.db.database import get_db
 from app.schemas.chat import ChatRequest
-from app.services.chat_session_service import (
-    create_chat_session,
-    get_active_session,
-    save_chat_message,
-    end_chat_session,
-)
+from app.services.chat_session_service import create_chat_session, get_owned_session, save_chat_message
+from app.services.installation_service import require_installation
 from app.services.nlp_service import analyze_message
-from app.services.welfare_service import fetch_save_and_return
-from app.services.local_welfare_service import fetch_local_save_and_return
+from app.services.welfare_service import build_welfare_params, parse_welfare_xml, build_request_url
+from app.services.local_welfare_service import build_local_welfare_params, parse_local_welfare_xml, build_local_request_url
+from app.services.welfare_api_common import fetch_xml
+from app.core.config import settings
 from app.models.chat_session import ChatSession
 from app.models.chat_message import ChatMessage
-from app.models.welfare_api_result import WelfareApiResult
+from app.models.platform import AppInstallation
+
+router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 
-router = APIRouter(
-    prefix="/api/chat",
-    tags=["Chat"],
-)
+def session_data(session):
+    return {"session_id": str(session.id), "title": session.title,
+            "created_at": session.created_at, "updated_at": session.updated_at}
 
 
-@router.post("/session")
-def create_session(db: Session = Depends(get_db)):
-    session = create_chat_session(db)
-
-    return {
-        "session_id": str(session.id),
-        "title": session.title,
-        "status": session.status,
-    }
+def is_searchable_intent(intent: dict) -> bool:
+    return any(intent.get(k) for k in (
+        "searchWrd", "lifeArray", "trgterIndvdlArray", "intrsThemaArray", "age",
+    )) or intent.get("age") == 0
 
 
-@router.post("/session/{session_id}/message")
-async def send_message(
-    session_id: UUID,
-    request: ChatRequest,
-    db: Session = Depends(get_db),
-):
-    session = get_active_session(db, session_id)
+def merge_profile_into_intent(intent: dict, profile) -> dict:
+    if profile is not None:
+        for key in ("age", "lifeArray", "trgterIndvdlArray", "intrsThemaArray"):
+            if intent.get(key) in (None, "") and getattr(profile, key) is not None:
+                intent[key] = getattr(profile, key)
+    return intent
 
-    if session is None:
-        raise HTTPException(status_code=404, detail="활성 세션이 없습니다.")
 
-    save_chat_message(
-        db=db,
-        session_id=session.id,
-        role="user",
-        content=request.message,
-    )
+@router.post("/message")
+async def send_message(request: ChatRequest,
+                       installation: AppInstallation = Depends(require_installation),
+                       db: Session = Depends(get_db)):
+    session = None
+    if request.session_id:
+        session = get_owned_session(db, request.session_id, installation.id)
+        if session is None:
+            raise HTTPException(404, "채팅을 찾을 수 없습니다.")
 
+    # Fetch before persisting: provider failures cannot leave an empty/unknown session.
     intent = analyze_message(request.message)
-
     if request.ctpvNm:
         intent["ctpvNm"] = request.ctpvNm
-
-    if request.useProfile and request.profile:
+    if request.useProfile:
         intent = merge_profile_into_intent(intent, request.profile)
+    results = {key: {"request_url": None, "saved_count": 0, "policies": []}
+               for key in ("central", "local")}
+    if is_searchable_intent(intent):
+        for key, url, build, parse, safe_url in (
+            ("central", settings.welfare_api_url, build_welfare_params, parse_welfare_xml, build_request_url),
+            ("local", settings.local_welfare_api_url, build_local_welfare_params, parse_local_welfare_xml, build_local_request_url),
+        ):
+            params = build(intent)
+            policies = parse(await fetch_xml(url, params))
+            results[key] = {"request_url": safe_url(params), "saved_count": len(policies), "policies": policies}
+        answer = f"중앙 복지제도 {len(results['central']['policies'])}건, 지자체 복지제도 {len(results['local']['policies'])}건을 찾았어요."
+    else:
+        answer = "대상이나 관심 분야를 조금 더 구체적으로 입력해주세요. 예: 청년 월세 지원, 노인 돌봄 서비스"
 
-    if not is_searchable_intent(intent):
-        answer = (
-            "복지제도를 검색하려면 대상이나 관심 분야를 조금 더 구체적으로 입력해주세요.\n"
-            "예: 청년 월세 지원, 저소득층 생활비 지원, 임산부 출산 지원, 노인 돌봄 서비스"
-        )
-
-        save_chat_message(
-            db=db,
-            session_id=session.id,
-            role="assistant",
-            content=answer,
-        )
-
-        return {
-            "answer": answer,
-            "intent": intent,
-            "results": {
-                "central": {
-                    "request_url": None,
-                    "saved_count": 0,
-                    "policies": [],
-                },
-                "local": {
-                    "request_url": None,
-                    "saved_count": 0,
-                    "policies": [],
-                },
-            },
-        }
-
-    central_result = await fetch_save_and_return(
-        db=db,
-        session_id=session.id,
-        query=request.message,
-        intent=intent,
-    )
-
-    local_result = await fetch_local_save_and_return(
-        db=db,
-        session_id=session.id,
-        query=request.message,
-        intent=intent,
-    )
-
-    central_policies = central_result["policies"]
-    local_policies = local_result["policies"]
-
-    answer = (
-        f"중앙 복지제도 {len(central_policies)}건, "
-        f"지자체 복지제도 {len(local_policies)}건을 찾았어요."
-    )
-
-    save_chat_message(
-        db=db,
-        session_id=session.id,
-        role="assistant",
-        content=answer,
-    )
-
-    return {
-        "answer": answer,
-        "intent": intent,
-        "results": {
-            "central": {
-                "request_url": central_result["request_url"],
-                "saved_count": central_result["saved_count"],
-                "policies": central_policies,
-            },
-            "local": {
-                "request_url": local_result["request_url"],
-                "saved_count": local_result["saved_count"],
-                "policies": local_policies,
-            },
-        },
-    }
-
-@router.post("/session/{session_id}/end")
-def end_session(
-    session_id: UUID,
-    db: Session = Depends(get_db),
-):
-    session = get_active_session(db, session_id)
-
-    if session is None:
-        raise HTTPException(status_code=404, detail="활성 세션이 없습니다.")
-
-    ended = end_chat_session(db, session)
-
-    return {
-        "session_id": str(ended.id),
-        "status": ended.status,
-        "ended_at": ended.ended_at,
-    }
+    try:
+        if session is None:
+            session = create_chat_session(db, installation.id, request.message)
+        save_chat_message(db, session.id, "user", request.message)
+        save_chat_message(db, session.id, "assistant", answer, message_metadata={"intent": intent})
+        # Preserve exactly the cards shown, including across app restarts. The future
+        # catalog collector will replace these transitional snapshots with version links.
+        for key, title in (("central", "중앙 복지제도"), ("local", "지자체 복지제도")):
+            if results[key]["policies"]:
+                save_chat_message(db, session.id, "assistant", None, "welfare_cards", {
+                    "title": title, "policies": results[key]["policies"],
+                    "requestUrl": results[key]["request_url"],
+                })
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"session_id": str(session.id), "title": session.title,
+            "answer": answer, "intent": intent, "results": results}
 
 
 @router.get("/sessions")
-def get_sessions(db: Session = Depends(get_db)):
-    sessions = (
-        db.query(ChatSession)
-        .order_by(ChatSession.created_at.desc())
-        .all()
-    )
-
-    return [
-        {
-            "session_id": str(session.id),
-            "title": session.title,
-            "status": session.status,
-            "created_at": session.created_at,
-            "ended_at": session.ended_at,
-        }
-        for session in sessions
-    ]
+def get_sessions(installation: AppInstallation = Depends(require_installation), db: Session = Depends(get_db)):
+    sessions = db.query(ChatSession).filter(ChatSession.installation_id == installation.id).order_by(ChatSession.updated_at.desc()).all()
+    return [session_data(s) for s in sessions]
 
 
 @router.get("/session/{session_id}")
-def get_session_detail(
-    session_id: UUID,
-    db: Session = Depends(get_db),
-):
-    session = (
-        db.query(ChatSession)
-        .filter(ChatSession.id == session_id)
-        .first()
-    )
-
+def get_session_detail(session_id: UUID, installation: AppInstallation = Depends(require_installation), db: Session = Depends(get_db)):
+    session = get_owned_session(db, session_id, installation.id)
     if session is None:
-        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+        raise HTTPException(404, "채팅을 찾을 수 없습니다.")
+    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session.id).order_by(ChatMessage.sequence_no).all()
+    return {"session": session_data(session), "messages": [
+        {"id": str(m.id), "role": m.role, "content": m.content,
+         "message_type": m.message_type, "message_metadata": m.message_metadata,
+         "created_at": m.created_at} for m in messages]}
 
-    messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
 
-    api_results = (
-        db.query(WelfareApiResult)
-        .filter(WelfareApiResult.session_id == session.id)
-        .order_by(WelfareApiResult.created_at.asc())
-        .all()
-    )
-
-    return {
-        "session": {
-            "session_id": str(session.id),
-            "title": session.title,
-            "status": session.status,
-            "created_at": session.created_at,
-            "ended_at": session.ended_at,
-        },
-        "messages": [
-            {
-                "id": str(message.id),
-                "role": message.role,
-                "content": message.content,
-                "message_type": message.message_type,
-                "message_metadata": message.message_metadata,
-                "created_at": message.created_at,
-            }
-            for message in messages
-        ],
-        "api_results": [
-            {
-                "id": str(result.id),
-                "query": result.query,
-                "request_url": redact_request_url(result.request_url) if result.request_url else None,
-                "intent": result.intent,
-                "service_id": result.service_id,
-                "service_name": result.service_name,
-                "summary": result.summary,
-                "raw_data": result.raw_data,
-                "created_at": result.created_at,
-            }
-            for result in api_results
-        ],
-    }
-
-def is_searchable_intent(intent: dict) -> bool:
-    searchable_keys = [
-        "searchWrd",
-        "lifeArray",
-        "trgterIndvdlArray",
-        "intrsThemaArray",
-        "age",
-    ]
-
-    return any(intent.get(key) for key in searchable_keys) or intent.get("age") == 0
-
-def merge_profile_into_intent(intent: dict, profile) -> dict:
-    if profile is None:
-        return intent
-
-    # 질문에서 나이가 추출되지 않았을 때만 프로필 나이 사용
-    if intent.get("age") in (None, "") and profile.age is not None:
-        intent["age"] = profile.age
-
-    # 질문에서 생애주기가 추출되지 않았을 때만 프로필 생애주기 사용
-    if not intent.get("lifeArray") and profile.lifeArray:
-        intent["lifeArray"] = profile.lifeArray
-
-    # 질문에서 가구상황이 추출되지 않았을 때만 프로필 가구상황 사용
-    if not intent.get("trgterIndvdlArray") and profile.trgterIndvdlArray:
-        intent["trgterIndvdlArray"] = profile.trgterIndvdlArray
-
-    # 질문에서 관심주제가 추출되지 않았을 때만 프로필 관심주제 사용
-    if not intent.get("intrsThemaArray") and profile.intrsThemaArray:
-        intent["intrsThemaArray"] = profile.intrsThemaArray
-
-    return intent
+@router.delete("/session/{session_id}", status_code=204)
+def delete_session(session_id: UUID, installation: AppInstallation = Depends(require_installation), db: Session = Depends(get_db)):
+    session = get_owned_session(db, session_id, installation.id)
+    if session is None:
+        raise HTTPException(404, "채팅을 찾을 수 없습니다.")
+    db.delete(session)
+    db.commit()
+    return Response(status_code=204)

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { apiFetch, clearLocalInstallation } from "./api";
+import { SubscriptionsPanel } from "./SubscriptionsPanel";
 
 interface Policy {
   serv_id?: string | null;
@@ -18,6 +20,8 @@ interface WelfareResultGroup {
 }
 
 interface ChatApiResponse {
+  session_id: string;
+  title: string;
   answer: string;
   intent?: Record<string, unknown>;
   results?: {
@@ -44,9 +48,8 @@ interface ChatMessage {
 interface ChatSession {
   session_id: string;
   title: string | null;
-  status: string;
   created_at: string;
-  ended_at: string | null;
+  updated_at: string;
 }
 
 interface SessionDetailResponse {
@@ -62,8 +65,6 @@ interface WelfareProfile {
 }
 
 type Page = "home" | "chat" | "settings";
-
-const API_BASE_URL = "http://127.0.0.1:8000";
 
 const CTPV_OPTIONS = [
   "서울특별시",
@@ -139,6 +140,8 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [chatList, setChatList] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [error, setError] = useState("");
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
 
@@ -151,8 +154,21 @@ export default function App() {
   const [profile, setProfile] = useState<WelfareProfile>(DEFAULT_PROFILE);
 
   useEffect(() => {
-    loadSessions();
+    let active = true;
+    const listRequest = apiFetch("/api/chat/sessions").then((r) => r.json()).then((data) => {
+      if (active) setSessions(data);
+    }).catch((e) => { if (active) setError(e.message); });
     loadSettings();
+    const lastSession = localStorage.getItem("welfareLastSession");
+    const detailRequest = lastSession ? apiFetch(`/api/chat/session/${lastSession}`).then((r) => r.json()).then((data: SessionDetailResponse) => {
+      if (!active) return;
+      setSessionId(data.session.session_id);
+      setSessionTitle(data.session.title || "채팅");
+      setChatList(data.messages);
+      setPage("chat");
+    }).catch((e) => { if (active) setError(e.message); }) : Promise.resolve();
+    Promise.all([listRequest, detailRequest]).finally(() => { if (active) setInitializing(false); });
+    return () => { active = false; };
   }, []);
 
   const loadSettings = () => {
@@ -191,36 +207,34 @@ export default function App() {
   };
 
   const loadSessions = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/chat/sessions`);
+    const res = await apiFetch("/api/chat/sessions");
     const data = await res.json();
     setSessions(data);
   };
 
-  const createSession = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/chat/session`, {
-      method: "POST",
-    });
-    const data = await res.json();
-
-    setSessionId(data.session_id);
-    setSessionTitle(data.title || "새 채팅");
+  const createSession = () => {
+    if (loading) return;
+    setSessionId("");
+    localStorage.removeItem("welfareLastSession");
+    setSessionTitle("새 채팅");
     setChatList([
       {
         role: "assistant",
-        content: "채팅 세션이 시작되었습니다. 궁금한 복지제도를 입력해주세요.",
+        content: "궁금한 복지제도를 입력해주세요.",
         message_type: "text",
       },
     ]);
 
-    await loadSessions();
     setPage("chat");
   };
 
   const loadSessionDetail = async (targetSessionId: string) => {
-    const res = await fetch(`${API_BASE_URL}/api/chat/session/${targetSessionId}`);
+    if (loading) return;
+    const res = await apiFetch(`/api/chat/session/${targetSessionId}`);
     const data: SessionDetailResponse = await res.json();
 
     setSessionId(data.session.session_id);
+    localStorage.setItem("welfareLastSession", data.session.session_id);
     setSessionTitle(data.session.title || "제목 없음");
     setChatList(data.messages);
     setPage("chat");
@@ -249,7 +263,7 @@ export default function App() {
   };
 
   const sendMessage = async () => {
-    if (!sessionId || !message.trim()) return;
+    if (loading || !message.trim()) return;
 
     const userMessage = message.trim();
 
@@ -263,19 +277,23 @@ export default function App() {
 
     try {
       const body = {
+        session_id: sessionId || null,
         message: userMessage,
         ctpvNm,
         useProfile,
         profile: useProfile ? buildRequestProfile() : null,
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}/message`, {
+      const res = await apiFetch("/api/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
       const data: ChatApiResponse = await res.json();
+      setSessionId(data.session_id);
+      setSessionTitle(data.title);
+      localStorage.setItem("welfareLastSession", data.session_id);
 
       if (!res.ok) {
         throw new Error(data?.answer || "서버 오류가 발생했습니다.");
@@ -356,13 +374,13 @@ export default function App() {
         ...prev,
         {
           role: "assistant",
-          content: "요청 처리 중 오류가 발생했습니다. 백엔드 로그를 확인해주세요.",
+          content: error instanceof Error ? error.message : "요청 처리 중 오류가 발생했습니다.",
           message_type: "text",
         },
       ]);
     } finally {
       setLoading(false);
-      await loadSessions();
+      await loadSessions().catch((e) => setError(e.message));
     }
   };
 
@@ -384,7 +402,7 @@ export default function App() {
         const formData = new FormData();
         formData.append("file", audioBlob, "recording.webm");
 
-        const response = await fetch(`${API_BASE_URL}/api/stt/transcribe`, {
+        const response = await apiFetch("/api/stt/transcribe", {
           method: "POST",
           body: formData,
         });
@@ -412,17 +430,25 @@ export default function App() {
     setMediaRecorder(null);
   };
 
-  const endSession = async () => {
-    if (!sessionId) return;
+  const deleteSession = async () => {
+    if (!sessionId || loading || !window.confirm("이 채팅 기록을 삭제할까요? 구독 설정은 유지됩니다.")) return;
+    try {
+      await apiFetch(`/api/chat/session/${sessionId}`, { method: "DELETE" });
+      localStorage.removeItem("welfareLastSession");
+      setSessionId(""); setSessionTitle(""); setChatList([]);
+      await loadSessions();
+      setPage("home");
+    } catch (e) { setError(e instanceof Error ? e.message : "삭제에 실패했습니다."); }
+  };
 
-    await fetch(`${API_BASE_URL}/api/chat/session/${sessionId}/end`, {
-      method: "POST",
-    });
-
-    setSessionId("");
-    setSessionTitle("");
-    await loadSessions();
-    setPage("home");
+  const deleteAllData = async () => {
+    if (loading || !window.confirm("이 앱의 채팅, 프로필, 구독, 알림을 모두 삭제할까요?")) return;
+    try {
+      await apiFetch("/api/installations/me", { method: "DELETE" });
+      clearLocalInstallation();
+      for (const key of ["welfareLastSession", "welfareProfile", "ctpvNm", "useWelfareProfile", "showWelfareDebug"]) localStorage.removeItem(key);
+      window.location.reload();
+    } catch (e) { setError(e instanceof Error ? e.message : "삭제에 실패했습니다."); }
   };
 
   const formatDate = (value: string | null) => {
@@ -616,7 +642,8 @@ export default function App() {
       {sessions.map((session) => (
         <button
           key={session.session_id}
-          onClick={() => loadSessionDetail(session.session_id)}
+          onClick={() => loadSessionDetail(session.session_id).catch((e) => setError(e.message))}
+          disabled={loading}
           style={{
             width: "100%",
             textAlign: "left",
@@ -633,7 +660,6 @@ export default function App() {
               {formatDate(session.created_at)}
             </span>
           </div>
-          <p style={{ color: "#64748b", marginBottom: 0 }}>{session.status}</p>
         </button>
       ))}
     </main>
@@ -643,8 +669,8 @@ export default function App() {
     <main style={{ flex: 1, display: "flex", flexDirection: "column", background: "#eef3ff" }}>
       <div style={{ padding: 16, background: "white", borderBottom: "1px solid #e5e7eb" }}>
         <strong>{sessionTitle || "복지 챗봇"}</strong>
-        <button onClick={endSession} style={{ float: "right" }} disabled={!sessionId}>
-          종료
+        <button onClick={deleteSession} style={{ float: "right" }} disabled={!sessionId || loading}>
+          기록 삭제
         </button>
 
         <div
@@ -755,7 +781,7 @@ export default function App() {
               ? "프로필 기준으로 궁금한 복지제도를 입력해보세요..."
               : "궁금한 복지제도를 입력해보세요..."
           }
-          disabled={!sessionId || loading}
+          disabled={loading}
           style={{
             flex: 1,
             padding: 12,
@@ -765,11 +791,11 @@ export default function App() {
         />
         <button
           onClick={recording ? stopRecording : startRecording}
-          disabled={!sessionId || loading}
+          disabled={loading}
         >
           {recording ? "⏹️" : "🎤"}
         </button>
-        <button onClick={sendMessage} disabled={!sessionId || loading}>
+        <button onClick={sendMessage} disabled={loading}>
           전송
         </button>
       </footer>
@@ -944,6 +970,8 @@ export default function App() {
           </button>
         </div>
       </div>
+      <SubscriptionsPanel />
+      <button onClick={deleteAllData} disabled={loading} style={{ marginTop: 20 }}>앱 데이터 전체 삭제</button>
     </main>
   );
 
@@ -972,9 +1000,11 @@ export default function App() {
         🤖 &nbsp; 복지제도 안내 챗봇
       </header>
 
-      {page === "home" && <HomePage />}
-      {page === "chat" && <ChatPage />}
-      {page === "settings" && <SettingsPage />}
+      {error && <div role="alert">{error}<button onClick={() => setError("")}>닫기</button></div>}
+      {initializing && <p>앱 연결을 확인하는 중...</p>}
+      {!initializing && page === "home" && HomePage()}
+      {!initializing && page === "chat" && ChatPage()}
+      {!initializing && page === "settings" && SettingsPage()}
 
       <nav
         style={{
@@ -985,9 +1015,9 @@ export default function App() {
           borderTop: "1px solid #e5e7eb",
         }}
       >
-        <button onClick={() => setPage("home")}>🏠<br />홈</button>
-        <button onClick={() => setPage("chat")}>💬<br />채팅</button>
-        <button onClick={() => setPage("settings")}>⚙️<br />설정</button>
+        <button disabled={initializing} onClick={() => setPage("home")}>🏠<br />홈</button>
+        <button disabled={initializing} onClick={() => setPage("chat")}>💬<br />채팅</button>
+        <button disabled={initializing} onClick={() => setPage("settings")}>⚙️<br />설정</button>
       </nav>
     </div>
   );

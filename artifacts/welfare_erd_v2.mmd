@@ -1,0 +1,133 @@
+erDiagram
+    APP_INSTALLATIONS {
+        varchar token_hash
+        datetime last_seen_at
+        uuid id PK
+        datetime created_at
+    }
+    SYNC_RUNS {
+        varchar source
+        varchar status
+        jsonb checkpoint
+        integer fetched_count
+        integer created_count
+        integer updated_count
+        integer failed_count
+        text error_summary
+        datetime started_at
+        datetime finished_at
+        uuid id PK
+    }
+    WELFARE_POLICIES {
+        varchar source
+        varchar external_id
+        text name
+        text summary
+        jsonb search_attributes
+        varchar availability_status
+        varchar content_hash
+        jsonb raw_data
+        datetime first_seen_at
+        datetime last_seen_at
+        datetime content_updated_at
+        uuid id PK
+    }
+    CHAT_SESSIONS {
+        uuid id PK
+        varchar title
+        uuid installation_id FK
+        datetime created_at
+        datetime updated_at
+    }
+    APP_INSTALLATIONS o|--o{ CHAT_SESSIONS : "installation_id"
+    PROFILES {
+        uuid installation_id FK
+        varchar name
+        date birth_date
+        varchar region
+        jsonb attributes
+        datetime updated_at
+        uuid id PK
+        datetime created_at
+    }
+    APP_INSTALLATIONS ||--o{ PROFILES : "installation_id"
+    WELFARE_POLICY_VERSIONS {
+        uuid policy_id FK
+        uuid sync_run_id FK
+        integer version_no
+        varchar change_type
+        jsonb snapshot
+        jsonb changes
+        datetime detected_at
+        uuid id PK
+    }
+    SYNC_RUNS o|--o{ WELFARE_POLICY_VERSIONS : "sync_run_id"
+    WELFARE_POLICIES ||--o{ WELFARE_POLICY_VERSIONS : "policy_id"
+    CHAT_MESSAGES {
+        uuid id PK
+        uuid session_id FK
+        varchar role
+        integer sequence_no
+        text content
+        varchar message_type
+        jsonb message_metadata
+        datetime created_at
+    }
+    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "session_id"
+    CONDITION_SUBSCRIPTIONS {
+        uuid installation_id FK
+        uuid profile_id FK
+        varchar name
+        jsonb conditions
+        jsonb event_types
+        varchar unknown_condition_policy
+        boolean enabled
+        datetime updated_at
+        uuid id PK
+        datetime created_at
+    }
+    APP_INSTALLATIONS ||--o{ CONDITION_SUBSCRIPTIONS : "installation_id"
+    PROFILES o|--o{ CONDITION_SUBSCRIPTIONS : "profile_id"
+    NOTIFICATIONS {
+        uuid installation_id FK
+        uuid policy_version_id FK
+        varchar channel
+        text title
+        text body
+        varchar delivery_status
+        integer attempt_count
+        datetime next_attempt_at
+        datetime sent_at
+        datetime read_at
+        uuid id PK
+        datetime created_at
+    }
+    APP_INSTALLATIONS ||--o{ NOTIFICATIONS : "installation_id"
+    WELFARE_POLICY_VERSIONS ||--o{ NOTIFICATIONS : "policy_version_id"
+    POLICY_ELIGIBILITY_RULES {
+        uuid policy_version_id FK
+        varchar field
+        varchar operator
+        jsonb value
+        text evidence
+        varchar verification_status
+        uuid id PK
+    }
+    WELFARE_POLICY_VERSIONS ||--o{ POLICY_ELIGIBILITY_RULES : "policy_version_id"
+    CHAT_SEARCH_RESULTS {
+        uuid message_id FK
+        uuid policy_version_id FK
+        integer rank
+        uuid id PK
+    }
+    WELFARE_POLICY_VERSIONS ||--o{ CHAT_SEARCH_RESULTS : "policy_version_id"
+    CHAT_MESSAGES ||--o{ CHAT_SEARCH_RESULTS : "message_id"
+    NOTIFICATION_MATCHES {
+        uuid notification_id FK
+        uuid subscription_id FK
+        jsonb conditions_snapshot
+        jsonb match_reason
+        uuid id PK
+    }
+    NOTIFICATIONS ||--o{ NOTIFICATION_MATCHES : "notification_id"
+    CONDITION_SUBSCRIPTIONS o|--o{ NOTIFICATION_MATCHES : "subscription_id"
