@@ -1,4 +1,10 @@
-export const API_BASE_URL = "http://127.0.0.1:8000";
+export const API_BASE_URL = (import.meta.env?.VITE_API_URL ||
+  (globalThis.location?.hostname === "10.0.2.2" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")).replace(/\/$/, "");
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
 const KEY = "welfareInstallation";
 type Installation = { installation_id: string; secret: string };
 let registration: Promise<Installation> | undefined;
@@ -28,7 +34,7 @@ async function ensureInstallation(): Promise<Installation> {
       const response = await fetch(`${API_BASE_URL}/api/installations`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("앱 연결에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      if (!response.ok) throw new ApiError("앱 연결에 실패했습니다. 잠시 후 다시 시도해주세요.", response.status);
       return data;
     })().catch((error) => { registration = undefined; throw error; });
   }
@@ -43,7 +49,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (!response.ok) {
     if (response.status === 401) registration = undefined;
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === "string" ? body.detail : "요청을 처리하지 못했습니다.");
+    throw new ApiError(typeof body.detail === "string" ? body.detail : "요청을 처리하지 못했습니다.", response.status);
   }
   return response;
 }

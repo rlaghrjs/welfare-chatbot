@@ -7,7 +7,7 @@ type Subscription = {
   event_types: string[]; unknown_condition_policy: string;
 };
 
-export function SubscriptionsPanel() {
+export function SubscriptionsPanel({ isActive = true }: { isActive?: boolean }) {
   const [items, setItems] = useState<Subscription[]>([]);
   const [name, setName] = useState("");
   const [region, setRegion] = useState("");
@@ -19,11 +19,11 @@ export function SubscriptionsPanel() {
   const load = async () => setItems(await (await apiFetch("/api/subscriptions")).json());
   useEffect(() => {
     let active = true;
-    apiFetch("/api/subscriptions").then((r) => r.json()).then((data) => {
+    if (isActive) apiFetch("/api/subscriptions").then((r) => r.json()).then((data) => {
       if (active) setItems(data);
     }).catch((e) => { if (active) setError(e.message); });
     return () => { active = false; };
-  }, []);
+  }, [isActive]);
 
   const change = async (action: () => Promise<unknown>) => {
     if (busy) return;
@@ -45,36 +45,38 @@ export function SubscriptionsPanel() {
     });
     setName(""); setRegion(""); setTheme(""); setKeywords(""); setAge("");
   };
-  return <section style={{ marginTop: 20, padding: 18, background: "white", borderRadius: 16, textAlign: "left" }}>
-    <h3>관심 조건 저장</h3>
-    <p>신규 제도와 내용 변경을 확인할 관심 조건을 저장하세요. 자동 수집·알림 기능은 준비 중입니다.</p>
-    <form onSubmit={(e) => { e.preventDefault(); void change(add); }} style={{ display: "grid", gap: 10 }}>
-      <label>구독 이름<input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 내 주거 지원" /></label>
-      <label>지역<input maxLength={100} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="예: 서울특별시" /></label>
-      <label>관심 분야<select value={theme} onChange={(e) => setTheme(e.target.value)}>
+  return <details className="settings-card mx-[14px] mb-[8px]">
+    <summary className="cursor-pointer px-[16px] py-[14px]">🔔 <span className="ml-2">관심 조건 관리</span></summary>
+    <div className="px-[16px] pb-[16px] text-[0.9em]">
+    <p className="mb-3 text-[0.85em] text-[#8899BB]">관심 조건을 미리 저장할 수 있어요. 자동 수집·알림 기능은 준비 중입니다.</p>
+    <form onSubmit={(e) => { e.preventDefault(); void change(add); }} className="grid gap-[12px]">
+      <label>구독 이름<input className="settings-input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 내 주거 지원" /></label>
+      <label>지역<input className="settings-input" maxLength={100} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="예: 서울특별시" /></label>
+      <label>관심 분야<select className="settings-input" value={theme} onChange={(e) => setTheme(e.target.value)}>
         <option value="">제한 없음</option>
         <option value="040">주거</option><option value="030">생활지원</option>
         <option value="050">일자리</option><option value="100">교육</option>
         <option value="010">신체건강</option><option value="090">보육</option>
         <option value="120">보호·돌봄</option>
       </select></label>
-      <label>만 나이<input type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} /></label>
-      <label>키워드<input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="예: 월세, 임차료 (선택)" /></label>
+      <label>만 나이<input className="settings-input" type="number" min={0} max={120} value={age} onChange={(e) => setAge(e.target.value)} /></label>
+      <label>키워드<input className="settings-input" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="예: 월세, 임차료 (선택)" /></label>
       <small>조건 항목 사이는 모두 충족, 여러 키워드는 하나 이상 일치 기준입니다. 상세 정보가 부족한 제도도 확인 후보에 포함합니다.</small>
-      <button disabled={busy}>관심 조건 저장</button>
+      <button className="settings-primary" disabled={busy}>관심 조건 저장</button>
     </form>
-    {error && <p role="alert">{error}</p>}
-    {items.map((item) => <div key={item.id} style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
+    {error && <p role="alert" className="mt-2">{error}</p>}
+    {items.map((item) => <div key={item.id} className="border-t border-[#E2E8F0] dark:border-[#2A3050] pt-3 mt-3">
       <strong>{item.name}</strong> · {item.enabled ? "활성" : "일시 정지"}
       <div>
-        <button disabled={busy} onClick={() => void change(async () => {
+        <button className="text-[#4A7FFF] mr-3 py-2 disabled:opacity-40" disabled={busy} onClick={() => void change(async () => {
           const { id, ...body } = item;
           await apiFetch(`/api/subscriptions/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, enabled: !item.enabled }) });
         })}>{item.enabled ? "일시 정지" : "다시 활성화"}</button>
-        <button disabled={busy} onClick={() => {
+        <button className="text-[#8899BB] py-2 disabled:opacity-40" disabled={busy} onClick={() => {
           if (window.confirm("이 구독 조건을 삭제할까요?")) void change(() => apiFetch(`/api/subscriptions/${item.id}`, { method: "DELETE" }));
         }}>삭제</button>
       </div>
     </div>)}
-  </section>;
+    </div>
+  </details>;
 }
