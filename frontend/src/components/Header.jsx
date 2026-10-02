@@ -1,6 +1,7 @@
+import NotificationsPanel from './NotificationsPanel'
 import { useTheme } from '../context/ThemeContext'
 
-export default function Header({ onNewChat, disabled }) {
+export default function Header({ onNewChat, disabled, ready }) {
   const { isDark, toggleDark } = useTheme()
 
   return (
@@ -11,6 +12,7 @@ export default function Header({ onNewChat, disabled }) {
       <div className="flex-1">
         <h1 className="text-[16px] font-bold text-[#1A2340] dark:text-[#E8EEFF] m-0">복지제도 안내 챗봇</h1>
       </div>
+      <NotificationsPanel ready={ready} />
       <button
         aria-label={isDark ? '라이트 모드로 변경' : '다크 모드로 변경'}
         onClick={toggleDark}

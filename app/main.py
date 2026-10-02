@@ -10,6 +10,7 @@ from app.routers.chat import router as chat_router
 from app.routers.stt import router as stt_router
 from app.routers.installations import router as installations_router
 from app.routers.subscriptions import router as subscriptions_router
+from app.routers.notifications import router as notifications_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -49,3 +50,5 @@ def root():
 app.include_router(chat_router)
 app.include_router(installations_router)
 app.include_router(subscriptions_router)
+
+app.include_router(notifications_router)

@@ -48,7 +48,7 @@ export function SubscriptionsPanel({ isActive = true }: { isActive?: boolean }) 
   return <details className="settings-card mx-[14px] mb-[8px]">
     <summary className="cursor-pointer px-[16px] py-[14px]">🔔 <span className="ml-2">관심 조건 관리</span></summary>
     <div className="px-[16px] pb-[16px] text-[0.9em]">
-    <p className="mb-3 text-[0.85em] text-[#8899BB]">관심 조건을 미리 저장할 수 있어요. 자동 수집·알림 기능은 준비 중입니다.</p>
+    <p className="mb-3 text-[0.85em] text-[#8899BB]">관심 조건을 저장하면 수집된 신규·변경 정책을 상단 알림에서 확인할 수 있어요.</p>
     <form onSubmit={(e) => { e.preventDefault(); void change(add); }} className="grid gap-[12px]">
       <label>구독 이름<input className="settings-input" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 내 주거 지원" /></label>
       <label>지역<input className="settings-input" maxLength={100} value={region} onChange={(e) => setRegion(e.target.value)} placeholder="예: 서울특별시" /></label>

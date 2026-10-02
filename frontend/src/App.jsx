@@ -103,7 +103,7 @@ export default function App() {
   return (
     <div className={`${isDark ? 'dark' : ''} flex flex-col h-screen h-[100dvh] max-w-[390px] mx-auto bg-[#F0F4FF] dark:bg-[#0F1120] font-['Noto_Sans_KR'] overflow-hidden relative`}
       style={{ fontSize: FONT_SIZES[fontSize]?.base, fontWeight: isBold ? '700' : '400' }}>
-      <div className="shrink-0"><Header onNewChat={isChatting ? goHome : undefined} disabled={isLoading || !ready} /></div>
+      <div className="shrink-0"><Header ready={ready} onNewChat={isChatting ? goHome : undefined} disabled={isLoading || !ready} /></div>
       {(!ready || error) && <div role={error ? 'alert' : 'status'} className="px-[14px] py-[10px] text-[13px] text-[#4A5A7A] dark:text-[#E8EEFF] bg-white dark:bg-[#1A1F35]">
         {error || '앱에 연결하는 중이에요…'}
         {!ready && error && <button className="ml-2 text-[#4A7FFF] underline" onClick={() => { setError(''); setAttempt(n => n + 1) }}>다시 연결</button>}
