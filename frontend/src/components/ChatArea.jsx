@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 import { useEffect, useRef } from 'react'
 import WelfareCard from './WelfareCard'
 
@@ -29,7 +30,7 @@ export default function ChatArea({ messages }) {
             <div key={i} className="flex flex-col gap-[8px]">
               <div className="flex items-end gap-[8px]">
                 <div className="w-[32px] h-[32px] bg-[#E8F0FF] dark:bg-[#2A3050] rounded-full flex items-center justify-center text-[16px] shrink-0">
-                  🤖
+                  <AppIcon name="robot" size={28} />
                 </div>
                 <div>
                   <div className="bg-white dark:bg-[#1A1F35] text-[#1A2340] dark:text-[#E8EEFF] px-[16px] py-[12px] rounded-[18px_18px_18px_4px] max-w-[75%] leading-relaxed border border-[#E2E8F0] dark:border-[#2A3050]"
@@ -43,7 +44,7 @@ export default function ChatArea({ messages }) {
                 <div className="ml-[40px]">
                   <h2 className="font-bold text-[#1A2340] dark:text-[#E8EEFF] mb-[10px] flex items-center gap-[6px]"
                     style={{ fontSize: '1em' }}>
-                    ✨ 추천 복지제도 {msg.welfareList.length}건
+                    <AppIcon name="recommendation" size={20} /> 추천 복지제도 {msg.welfareList.length}건
                   </h2>
                   {msg.welfareList.map((card, j) => (
                     <WelfareCard key={j} {...card} />
@@ -58,7 +59,7 @@ export default function ChatArea({ messages }) {
           return (
             <div key={i} className="flex items-end gap-[8px]">
               <div className="w-[32px] h-[32px] bg-[#E8F0FF] dark:bg-[#2A3050] rounded-full flex items-center justify-center text-[16px] shrink-0">
-                🤖
+                <AppIcon name="robot" size={28} />
               </div>
               <div className="bg-white dark:bg-[#1A1F35] px-[16px] py-[12px] rounded-[18px_18px_18px_4px] border border-[#E2E8F0] dark:border-[#2A3050]">
                 <div className="flex gap-[4px] items-center h-[20px]">

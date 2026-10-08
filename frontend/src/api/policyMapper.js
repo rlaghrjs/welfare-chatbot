@@ -1,12 +1,12 @@
 const themes = {
-  '010': ['신체건강', '🏥', '#E0F5EC', 'green'], '020': ['정신건강', '🏥', '#E0F5EC', 'green'],
-  '030': ['생활지원', '📋', '#E8F0FF', 'blue'], '040': ['주거', '🏠', '#E8F0FF', 'blue'],
-  '050': ['일자리', '💼', '#FFF0E8', 'blue'], '060': ['문화·여가', '🎨', '#EDE8FF', 'purple'],
-  '070': ['안전·위기', '📋', '#E8F0FF', 'blue'], '080': ['임신·출산', '👶', '#FFF0E8', 'blue'],
-  '090': ['보육', '👶', '#FFF0E8', 'blue'], '100': ['교육', '📚', '#EDE8FF', 'purple'],
-  '110': ['입양·위탁', '👶', '#FFF0E8', 'blue'], '120': ['보호·돌봄', '👶', '#FFF0E8', 'blue'],
-  '130': ['서민금융', '💰', '#E8F0FF', 'blue'], '140': ['법률', '📋', '#E8F0FF', 'blue'],
-  '150': ['관계개선', '📋', '#E8F0FF', 'blue'], '160': ['에너지', '💡', '#E8F0FF', 'blue'],
+  '010': ['신체건강', 'health', '#E0F5EC', 'green'], '020': ['정신건강', 'health', '#E0F5EC', 'green'],
+  '030': ['생활지원', 'general-welfare', '#E8F0FF', 'blue'], '040': ['주거', 'home', '#E8F0FF', 'blue'],
+  '050': ['일자리', 'employment', '#FFF0E8', 'blue'], '060': ['문화·여가', 'appearance', '#EDE8FF', 'purple'],
+  '070': ['안전·위기', 'general-welfare', '#E8F0FF', 'blue'], '080': ['임신·출산', 'childcare', '#FFF0E8', 'blue'],
+  '090': ['보육', 'childcare', '#FFF0E8', 'blue'], '100': ['교육', 'education', '#EDE8FF', 'purple'],
+  '110': ['입양·위탁', 'childcare', '#FFF0E8', 'blue'], '120': ['보호·돌봄', 'childcare', '#FFF0E8', 'blue'],
+  '130': ['서민금융', 'finance', '#E8F0FF', 'blue'], '140': ['법률', 'general-welfare', '#E8F0FF', 'blue'],
+  '150': ['관계개선', 'general-welfare', '#E8F0FF', 'blue'], '160': ['에너지', 'energy', '#E8F0FF', 'blue'],
 }
 
 export function safePolicyLink(link) {
@@ -19,7 +19,7 @@ export function toWelfareCard(policy, source = '') {
   const tokens = raw.split(/[,\s]+/)
   const theme = Object.entries(themes).find(([code, [name]]) =>
     tokens.includes(code) || raw.includes(name) || name.split('·').some(part => raw.includes(part)))?.[1]
-    || ['복지', '📋', '#E8F0FF', 'blue']
+    || ['복지', 'general-welfare', '#E8F0FF', 'blue']
   const summary = policy.serv_dgst || ''
   return {
     id: `${source}:${policy.serv_id}`, source,

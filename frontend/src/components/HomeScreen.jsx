@@ -1,8 +1,9 @@
+import AppIcon from './AppIcon'
 import { useTheme } from '../context/ThemeContext'
 
 const recommendCards = [
   {
-    emoji: '🏠',
+    icon: 'home',
     bg: '#E8F0FF',
     darkBg: '#1E2D5A',
     title: '청년 주거 지원',
@@ -10,7 +11,7 @@ const recommendCards = [
     query: '청년 주거 지원 알려줘',
   },
   {
-    emoji: '👶',
+    icon: 'childcare',
     bg: '#E0F5EC',
     darkBg: '#1A3D2E',
     title: '육아 복지 제도',
@@ -18,7 +19,7 @@ const recommendCards = [
     query: '육아 관련 복지 뭐 있어?',
   },
   {
-    emoji: '🏥',
+    icon: 'health',
     bg: '#FFF0E8',
     darkBg: '#3D2A1A',
     title: '노인 의료 지원',
@@ -26,7 +27,7 @@ const recommendCards = [
     query: '노인 의료 지원 제도는?',
   },
   {
-    emoji: '♿',
+    icon: 'accessibility',
     bg: '#EDE8FF',
     darkBg: '#2A1F4A',
     title: '장애인 복지 서비스',
@@ -42,7 +43,7 @@ export default function HomeScreen({ onSend, disabled }) {
     <div className="flex flex-col h-full px-[16px] py-[20px] overflow-y-auto bg-[#F0F4FF] dark:bg-[#0F1120]" style={{ justifyContent: 'safe center' }}>
       <div className="flex flex-col items-center gap-[10px] mb-[28px] mt-[8px]">
         <div className="w-[68px] h-[68px] bg-[#E8F0FF] dark:bg-[#2A3050] rounded-2xl flex items-center justify-center text-[38px]">
-          🤖
+          <AppIcon name="robot" size={60} />
         </div>
         <h2 className="font-bold text-[#1A2340] dark:text-[#E8EEFF]" style={{ fontSize: '1.2em' }}>
           무엇이 궁금한가요?
@@ -55,7 +56,7 @@ export default function HomeScreen({ onSend, disabled }) {
       <div className="mb-[16px]">
         <p className="font-bold text-[#4A5A7A] dark:text-[#8899BB] mb-[12px] flex items-center gap-[6px]"
           style={{ fontSize: '0.9em' }}>
-          ✨ 추천 복지제도
+          <AppIcon name="recommendation" size={20} /> 추천 복지제도
         </p>
         <div className="grid grid-cols-2 gap-[10px]">
           {recommendCards.map((card, i) => (
@@ -69,7 +70,7 @@ export default function HomeScreen({ onSend, disabled }) {
                 className="w-[44px] h-[44px] rounded-xl flex items-center justify-center text-[24px] mb-[10px]"
                 style={{ background: isDark ? card.darkBg : card.bg }}
               >
-                {card.emoji}
+                <AppIcon name={card.icon} size={38} />
               </div>
               <p className="font-bold text-[#1A2340] dark:text-[#E8EEFF] mb-[4px] leading-tight"
                 style={{ fontSize: '0.9em' }}>
@@ -85,7 +86,7 @@ export default function HomeScreen({ onSend, disabled }) {
       </div>
 
       <p className="text-center text-[#AAB8D4] dark:text-[#445577] mt-[4px]" style={{ fontSize: '0.8em' }}>
-        또는 아래 입력창에 직접 질문해보세요 💬
+        또는 아래 입력창에 직접 질문해보세요 <AppIcon name="chat" size={20} />
       </p>
     </div>
   )

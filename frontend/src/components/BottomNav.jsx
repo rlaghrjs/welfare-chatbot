@@ -1,7 +1,8 @@
+import AppIcon from './AppIcon'
 const navItems = [
-  { icon: '🏠', label: '홈' },
-  { icon: '💬', label: '채팅' },
-  { icon: '⚙️', label: '설정' },
+  { icon: 'home', label: '홈' },
+  { icon: 'chat', label: '채팅' },
+  { icon: 'settings', label: '설정' },
 ]
 
 export default function BottomNav({ activeTab, onTabChange }) {
@@ -13,7 +14,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
           onClick={() => onTabChange(i)}
           className="flex-1 flex flex-col items-center gap-[3px] py-[10px] pb-[12px] bg-transparent border-none cursor-pointer"
         >
-          <span className="text-[20px]">{item.icon}</span>
+          <span className="text-[20px]"><AppIcon name={item.icon} size={24} /></span>
           <span className={`text-[11px] ${activeTab === i ? 'text-[#4A7FFF] font-bold' : 'text-[#8899BB] dark:text-[#5566AA]'}`}>
             {item.label}
           </span>

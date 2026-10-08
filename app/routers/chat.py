@@ -61,7 +61,12 @@ async def send_message(request: ChatRequest,
         ):
             params = build(intent)
             policies = parse(await fetch_xml(url, params))
+
+            limit = 2 if key == "central" else 3
+            policies = policies[:limit]
+
             results[key] = {"request_url": safe_url(params), "saved_count": len(policies), "policies": policies}
+
         answer = f"중앙 복지제도 {len(results['central']['policies'])}건, 지자체 복지제도 {len(results['local']['policies'])}건을 찾았어요."
     else:
         answer = "대상이나 관심 분야를 조금 더 구체적으로 입력해주세요. 예: 청년 월세 지원, 노인 돌봄 서비스"

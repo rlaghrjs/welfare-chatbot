@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 const tagStyles = {
   blue:   { bg: 'bg-[#E0EAFF] dark:bg-[#1E2D5A]', text: 'text-[#3560CC] dark:text-[#7A9FFF]' },
   green:  { bg: 'bg-[#E0F5EC] dark:bg-[#1A3D2E]', text: 'text-[#1A7A50] dark:text-[#4ACC8A]' },
@@ -23,7 +24,7 @@ export default function WelfareCard({ icon, iconBg, title, tag, tagColor, checkC
         className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[26px] shrink-0"
         style={{ background: iconBg || '#E8F0FF' }}
       >
-        {icon}
+        <AppIcon name={icon} size={44} />
       </div>
 
       <div className="flex-1 min-w-0">

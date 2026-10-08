@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 import { useState, useEffect } from 'react'
 import { getChatList } from '../api/welfare'
 
@@ -53,7 +54,7 @@ export default function ChatList({ onSelectSession, onDeleteSession, isActive, r
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-[8px]">
-            <span className="text-[32px]">💬</span>
+            <span className="text-[32px]"><AppIcon name="chat" size={44} /></span>
             <p className="text-[#8899BB] dark:text-[#5566AA]" style={{ fontSize: '0.9em' }}>
               {query ? '검색 결과가 없어요' : '아직 채팅 내역이 없어요'}
             </p>

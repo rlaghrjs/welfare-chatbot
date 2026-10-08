@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 import { useTheme, FONT_SIZES } from '../context/ThemeContext'
 import { useState } from 'react'
 import SearchSettings from './SearchSettings'
@@ -8,17 +9,17 @@ const settingsItems = [
   {
     section: '환경설정',
     items: [
-      { icon: '🎨', label: '다크 모드', type: 'toggle' },
-      { icon: '📝', label: '글자 크기', type: 'fontsize' },
+      { icon: 'appearance', label: '다크 모드', type: 'toggle' },
+      { icon: 'text-size', label: '글자 크기', type: 'fontsize' },
       { icon: '𝐁', label: '굵은 글씨', type: 'bold' },
     ],
   },
   {
     section: '정보',
     items: [
-      { icon: '📋', label: '이용약관', type: 'arrow' },
-      { icon: '🔐', label: '개인정보 처리방침', type: 'arrow' },
-      { icon: 'ℹ️', label: '앱 버전', value: 'v1.0.0', type: 'value' },
+      { icon: 'general-welfare', label: '이용약관', type: 'arrow' },
+      { icon: 'privacy', label: '개인정보 처리방침', type: 'arrow' },
+      { icon: 'ⓘ', label: '앱 버전', value: 'v1.0.0', type: 'value' },
     ],
   },
 ]
@@ -50,7 +51,7 @@ export default function SettingsPage({ isActive, busy }) {
                   ${ii < group.items.length - 1 ? 'border-b border-[#F0F4FF] dark:border-[#2A3050]' : ''}`}
               >
                 <div className="flex items-center gap-[12px]">
-                  <span className="text-[18px] w-[24px] text-center">{item.icon}</span>
+                  <span className="text-[18px] w-[24px] text-center">{['bold', 'value'].includes(item.type) ? item.icon : <AppIcon name={item.icon} size={24} />}</span>
                   <span className="flex-1 text-[#1A2340] dark:text-[#E8EEFF]"
                     style={{ fontSize: '1em' }}>{item.label}</span>
 
@@ -120,7 +121,7 @@ export default function SettingsPage({ isActive, busy }) {
       <SearchSettings />
       <SubscriptionsPanel isActive={isActive} />
       <div className="settings-card mx-[14px] my-[8px] px-[16px] py-[14px]">
-        <button disabled={busy || deleting} className="text-[0.9em] disabled:opacity-40" onClick={removeData}>🗑️ <span className="ml-2">앱 데이터 전체 삭제</span></button>
+        <button disabled={busy || deleting} className="text-[0.9em] disabled:opacity-40" onClick={removeData}><AppIcon name="delete" size={20} /> <span className="ml-2">앱 데이터 전체 삭제</span></button>
         {error && <p role="alert" className="mt-2 text-[0.85em]">{error}</p>}
       </div>
     </div>

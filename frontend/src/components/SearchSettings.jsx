@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 import { useState } from 'react'
 import { REGIONS, LIFE, TARGETS, THEMES, readSearchSettings } from '../api/searchSettings'
 
@@ -14,7 +15,7 @@ export default function SearchSettings() {
     setSaved(true)
   }
   return <details className="settings-card mx-[14px] mb-[8px]">
-    <summary className="cursor-pointer px-[16px] py-[14px]">🔎 <span className="ml-2">복지 검색 설정</span></summary>
+    <summary className="cursor-pointer px-[16px] py-[14px]"><AppIcon name="search" size={20} /> <span className="ml-2">복지 검색 설정</span></summary>
     <form onSubmit={save} className="px-[16px] pb-[16px] grid gap-[12px] text-[0.9em]">
       <label>검색 지역<select className="settings-input" value={settings.region} onChange={e => update({ region: e.target.value })}><option value="">전국 / 지역 제한 없음</option>{REGIONS.map(r => <option key={r}>{r}</option>)}</select></label>
       <label className="flex items-center gap-2"><input type="checkbox" checked={settings.useProfile} onChange={e => update({ useProfile: e.target.checked })} />내 조건을 검색에 반영</label>

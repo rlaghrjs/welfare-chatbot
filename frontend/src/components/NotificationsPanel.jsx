@@ -1,3 +1,4 @@
+import AppIcon from './AppIcon'
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../api'
 
@@ -32,7 +33,7 @@ export default function NotificationsPanel({ ready }) {
     } catch (e) { setError(e.message) }
   }
   return <>
-    <button disabled={!ready} aria-label={`알림 ${data.unread_count}개 읽지 않음`} aria-expanded={open} onClick={() => setOpen(!open)} className="text-[#4A7FFF] text-[13px]">🔔{data.unread_count > 0 && ` ${data.unread_count}`}</button>
+    <button disabled={!ready} aria-label={`알림 ${data.unread_count}개 읽지 않음`} aria-expanded={open} onClick={() => setOpen(!open)} className="text-[#4A7FFF] text-[13px]"><AppIcon name="notification" size={22} />{data.unread_count > 0 && ` ${data.unread_count}`}</button>
     {open && <section aria-label="정책 알림" className="absolute inset-x-0 top-[70px] bottom-[65px] z-50 bg-white dark:bg-[#1A1F35] text-[#1A2340] dark:text-[#E8EEFF] p-4 overflow-y-auto">
       <div className="flex justify-between mb-3"><h2 className="font-bold">정책 알림</h2><button onClick={() => setOpen(false)}>닫기</button></div>
       <p className="text-[12px] mb-3">관심 조건과 일치하는 정책이에요. 실제 지원 자격은 상세 안내에서 확인해주세요.</p>

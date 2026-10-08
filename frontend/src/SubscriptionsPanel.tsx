@@ -1,3 +1,4 @@
+import AppIcon from './components/AppIcon'
 import { useEffect, useState } from "react";
 import { apiFetch } from "./api";
 
@@ -46,7 +47,7 @@ export function SubscriptionsPanel({ isActive = true }: { isActive?: boolean }) 
     setName(""); setRegion(""); setTheme(""); setKeywords(""); setAge("");
   };
   return <details className="settings-card mx-[14px] mb-[8px]">
-    <summary className="cursor-pointer px-[16px] py-[14px]">🔔 <span className="ml-2">관심 조건 관리</span></summary>
+    <summary className="cursor-pointer px-[16px] py-[14px]"><AppIcon name="notification" size={20} /> <span className="ml-2">관심 조건 관리</span></summary>
     <div className="px-[16px] pb-[16px] text-[0.9em]">
     <p className="mb-3 text-[0.85em] text-[#8899BB]">관심 조건을 저장하면 수집된 신규·변경 정책을 상단 알림에서 확인할 수 있어요.</p>
     <form onSubmit={(e) => { e.preventDefault(); void change(add); }} className="grid gap-[12px]">
