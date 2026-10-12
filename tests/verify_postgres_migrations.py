@@ -34,7 +34,13 @@ def main():
             conn.execute(text("INSERT INTO chat_messages (id,session_id,role,content,message_type) VALUES (:id,:session,'user','historical','text')"), {"id": message_id, "session": session_id})
             command.upgrade(config, "head")
             inspector = inspect(conn)
-            assert len(inspector.get_table_names()) == 14  # 12 core + legacy results + Alembic
+            assert len(inspector.get_table_names()) == 15  # Includes independent search logs.
+            assert inspector.get_foreign_keys("search_logs") == []
+            assert {c['name'] for c in inspector.get_columns('search_logs')} == {'id', 'lifekeyword', 'targetkeyword', 'themekeyword', 'age', 'searched_at'}
+            assert {i['name'] for i in inspector.get_indexes('search_logs')} == {'idx_searched_at', 'idx_keywords'}
+            log = conn.execute(text("INSERT INTO search_logs (themekeyword, age) VALUES ('주거', 0) RETURNING id, lifekeyword, themekeyword, searched_at")).one()
+            assert log.id > 0 and log.lifekeyword is None and log.themekeyword == '주거'
+            assert log.searched_at.tzinfo is not None
             row = conn.execute(text("SELECT installation_id,legacy_status FROM chat_sessions WHERE id=:id"), {"id": session_id}).one()
             assert row[0] is None and row[1] == "ended"
             assert conn.execute(text("SELECT sequence_no FROM chat_messages WHERE id=:id"), {"id": message_id}).scalar() == 1

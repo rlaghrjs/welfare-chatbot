@@ -1,0 +1,12 @@
+Apply to the develop project with migration 0002_anonymous_conditions.
+1. Copy the included folders into the project root.
+2. Add this line to app/models/__init__.py (keep existing imports):
+   from app.models.search_log import SearchLog
+3. Activate the project Python environment.
+4. Check that .env DATABASE_URL points to your intended local test database.
+5. Run: python -m alembic upgrade head
+6. Restart the backend.
+
+Database schema only: no automatic search logging or ranking API.
+Optional isolated PostgreSQL check: python tests/verify_postgres_migrations.py
+This check uses a temporary schema and rolls it back.
