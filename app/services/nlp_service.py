@@ -4,11 +4,43 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from openai import OpenAI
 import re
+from app.db.database import SessionLocal
+from app.models.search_log import SearchLog
 
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# db 저장함수 
+def save_search_keywords_to_db(
+    lifekeyword: Optional[str] = None,
+    targetkeyword: Optional[str] = None,
+    themekeyword: Optional[str] = None,
+    age: Optional[int] = None
+) -> None:
+    """
+    추출된 4가지 키워드(lifeKeyword, targetKeyword, themeKeyword, age)를
+    SQLAlchemy ORM 세션을 사용하여 search_logs 테이블에 저장합니다.
+    """
+    # 4가지 키워드가 모두 빈 값인 경우 저장하지 않음
+    if not any([lifekeyword, targetkeyword, themekeyword, age]):
+        return
+
+    db = SessionLocal()
+    try:
+        search_log = SearchLog(
+            lifekeyword=lifekeyword,
+            targetkeyword=targetkeyword,
+            themekeyword=themekeyword,
+            age=age
+        )
+        db.add(search_log)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[NLP Service DB Error] ORM 키워드 저장 실패: {e}")
+    finally:
+        db.close()
 
 LIFE_RULES = {
     "001": ["영유아", "아기", "유아", "신생아"],
@@ -190,7 +222,7 @@ def analyze_message(user_input: str) -> dict:
     target_code = match_code(target_keyword, TARGET_RULES)
     theme_code = match_code(theme_keyword, THEME_RULES)
 
-    return {
+    result = {
         "original_message": user_input,
         "searchWrd": search_wrd,
 
@@ -209,6 +241,18 @@ def analyze_message(user_input: str) -> dict:
         "age": extracted.get("age"),
     }
 
+    # 추출된 키워드를 DB에 저장
+    try:
+        save_search_keywords_to_db(
+            lifekeyword=result.get("lifeKeyword"),
+            targetkeyword=result.get("targetKeyword"),
+            themekeyword=result.get("themeKeyword"),
+            age=result.get("age")
+        )
+    except Exception as e:
+        print(f"[NLP DB 저장 실패] : {e}")
+
+    return result
 
 def extract_keywords_by_rule(user_input: str) -> dict:
     text = user_input.strip()
