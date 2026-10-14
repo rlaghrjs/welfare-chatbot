@@ -9,3 +9,4 @@ python-dotenv
 psycopg2
 openai
 python-multipart
+alembic>=1.13,<2

@@ -3,6 +3,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-node_modules/
-dist/
-.codex-test-deps
+.env.*
+!.env.example
+.codex-test-deps/

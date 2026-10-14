@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.welfare_api_result import WelfareApiResult
+from app.models.chat_session import ChatSession
+from app.models.platform import AppInstallation
+from app.services.installation_service import require_installation
 
 
 router = APIRouter(
@@ -16,12 +19,13 @@ router = APIRouter(
 
 @router.get("/results")
 def get_welfare_results(
+    installation: AppInstallation = Depends(require_installation),
     db: Session = Depends(get_db),
     session_id: UUID | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ):
-    query = db.query(WelfareApiResult)
+    query = db.query(WelfareApiResult).join(ChatSession).filter(ChatSession.installation_id == installation.id)
 
     if session_id:
         query = query.filter(WelfareApiResult.session_id == session_id)

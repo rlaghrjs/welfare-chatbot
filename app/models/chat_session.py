@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, ForeignKey, String, Index, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,13 +18,19 @@ class ChatSession(Base):
     )
 
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    # NULL only for historical sessions whose owner cannot be established.
+    installation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app_installations.id", ondelete="CASCADE"), nullable=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
     )
-    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+    )
+    __table_args__ = (Index("ix_chat_installation_updated", "installation_id", "updated_at"),)
 
     messages = relationship(
         "ChatMessage",
