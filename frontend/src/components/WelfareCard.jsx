@@ -1,4 +1,5 @@
 import AppIcon from './AppIcon'
+import SpeakButton from './SpeakButton'
 const tagStyles = {
   blue:   { bg: 'bg-[#E0EAFF] dark:bg-[#1E2D5A]', text: 'text-[#3560CC] dark:text-[#7A9FFF]' },
   green:  { bg: 'bg-[#E0F5EC] dark:bg-[#1A3D2E]', text: 'text-[#1A7A50] dark:text-[#4ACC8A]' },
@@ -16,9 +17,10 @@ export default function WelfareCard({ icon, iconBg, title, tag, tagColor, checkC
   const checkBg = checkColors[checkColor] || checkColors.blue
 
   return (
+    <div className="bg-white dark:bg-[#1A1F35] rounded-2xl p-[14px] flex items-center gap-2 border border-[#E2E8F0] dark:border-[#2A3050] mb-[10px]">
     <a
       href={link || undefined} target="_blank" rel="noopener noreferrer"
-      className="bg-white dark:bg-[#1A1F35] rounded-2xl p-[14px] flex items-center gap-3 border border-[#E2E8F0] dark:border-[#2A3050] mb-[10px] cursor-pointer active:scale-[0.98] transition-transform"
+      className="flex-1 min-w-0 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition-transform"
     >
       <div
         className="w-[52px] h-[52px] rounded-[14px] flex items-center justify-center text-[26px] shrink-0"
@@ -52,5 +54,7 @@ export default function WelfareCard({ icon, iconBg, title, tag, tagColor, checkC
 
       <span className="text-[#CBD5E8] dark:text-[#3A4A70] text-[18px] shrink-0">›</span>
     </a>
+    {title && <SpeakButton text={title} label={`${title} 제목 읽어주기`} />}
+    </div>
   )
 }

@@ -45,6 +45,14 @@ export async function transcribeAudio(blob) {
   return data.text || ''
 }
 
+export async function synthesizeSpeech(text) {
+  const response = await apiFetch('/api/tts/speak', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  return response.blob()
+}
+
 export async function deleteAppData() {
   await apiFetch('/api/installations/me', { method: 'DELETE' })
   clearLocalInstallation()

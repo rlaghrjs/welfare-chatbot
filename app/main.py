@@ -8,6 +8,7 @@ from app.db.init_db import init_db
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers.chat import router as chat_router
 from app.routers.stt import router as stt_router
+from app.routers.tts import router as tts_router
 from app.routers.installations import router as installations_router
 from app.routers.subscriptions import router as subscriptions_router
 from app.routers.notifications import router as notifications_router
@@ -23,6 +24,7 @@ app.add_exception_handler(WelfareAPIError, welfare_api_error_handler)
 
 
 app.include_router(stt_router)
+app.include_router(tts_router)
 
 
 app.add_middleware(
