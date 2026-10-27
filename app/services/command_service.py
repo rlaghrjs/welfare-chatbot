@@ -47,16 +47,16 @@ def get_popular_keywords_response() -> str:
         )
 
         # 메시지 구성
-        response_text = "🔥 **최근 인기 복지 검색어 순위 (최근 30일)**\n\n"
+        response_text = "**최근 인기 복지 검색어 순위 (최근 30일)**\n\n"
         
-        response_text += "📌 **인기 관심 주제**\n"
+        response_text += "**인기 관심 주제**\n"
         if top_themes:
             for idx, item in enumerate(top_themes, 1):
                 response_text += f"{idx}. {item.keyword} ({item.count}회)\n"
         else:
             response_text += "집계된 데이터가 없습니다.\n"
 
-        response_text += "\n📌 **인기 대상/생애주기**\n"
+        response_text += "\n**인기 대상/생애주기**\n"
         if top_lifes:
             for idx, item in enumerate(top_lifes, 1):
                 response_text += f"{idx}. {item.keyword} ({item.count}회)\n"
